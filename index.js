@@ -6,6 +6,8 @@ const path = require('path');
 const bcrypt = require('bcrypt');
 const webpush = require('web-push'); // ✅ Nuevo
 const { publicKey, privateKey } = require('./vapidkeys'); // ✅ Nuevo
+const { Expo } = require('expo-server-sdk');
+const expo = new Expo();
 
 const app = express();
 app.use(cors());
@@ -39,6 +41,58 @@ const enviarNotificacion = (payload) => {
     webpush.sendNotification(sub, JSON.stringify(payload)).catch(err => console.error('❌ Error al enviar noti:', err))
   );
 };
+
+const enviarNotificacionExpo = async ({ title, body }) => {
+  try {
+    const tokensDB = await PushToken.find();
+
+    const mensajes = tokensDB
+      .filter(t => Expo.isExpoPushToken(t.expoPushToken))
+      .map(t => ({
+        to: t.expoPushToken,
+        sound: 'default',
+        title,
+        body,
+      }));
+
+    const chunks = expo.chunkPushNotifications(mensajes);
+
+    if (mensajes.length === 0) {
+  console.log('📭 No hay tokens válidos para notificar');
+  return;
+}
+    for (let chunk of chunks) {
+      await expo.sendPushNotificationsAsync(chunk);
+    }
+    console.log('📤 Notificaciones Expo enviadas');
+  } catch (error) {
+    console.error('❌ Error al enviar notificaciones Expo:', error);
+  }
+};
+
+const enviarNotificacionACliente = async ({ clienteId, title, body }) => {
+  try {
+    const tokenData = await PushToken.findOne({ clienteId });
+    if (!tokenData || !Expo.isExpoPushToken(tokenData.expoPushToken)) {
+      console.log(`❌ Token inválido o no encontrado para clienteId: ${clienteId}`);
+      return;
+    }
+
+    const mensaje = [{
+      to: tokenData.expoPushToken,
+      sound: 'default',
+      title,
+      body,
+    }];
+
+    await expo.sendPushNotificationsAsync(mensaje);
+    console.log('📤 Notificación enviada a cliente:', clienteId);
+  } catch (error) {
+    console.error('❌ Error al enviar notificación a cliente:', error);
+  }
+};
+
+
 
 mongoose
   .connect('mongodb+srv://DiegoLLera:666bonus@cluster0.l40i6a0.mongodb.net/copiadoras?retryWrites=true&w=majority&appName=Cluster0')
@@ -88,6 +142,12 @@ const usuarioSchema = new mongoose.Schema({
 });
 const Usuario = mongoose.model('Usuario', usuarioSchema);
 
+const pushTokenSchema = new mongoose.Schema({
+  clienteId: { type: String, required: true },
+  expoPushToken: { type: String, required: true },
+});
+const PushToken = mongoose.model('PushToken', pushTokenSchema);
+
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, 'uploads/');
@@ -122,6 +182,11 @@ app.post('/tickets', upload.array('fotos'), async (req, res) => {
       body: `${empresa} - ${area}: ${descripcionFalla}`,
     });
 
+    enviarNotificacionExpo({
+  title: '📢 Nuevo Ticket',
+  body: `${empresa} - ${area}: ${descripcionFalla}`,
+});
+
     res.json(nuevoTicket);
   } catch (error) {
     console.error('Error al crear ticket:', error);
@@ -151,6 +216,11 @@ app.post('/toner', upload.none(), async (req, res) => {
       body: `${empresa} - ${area} ha solicitado un tóner`,
     });
 
+    enviarNotificacionExpo({
+  title: '🟣 Nuevo pedido de tóner',
+  body: `${empresa} - ${area} ha solicitado un tóner`,
+});
+
     res.status(201).json({ message: 'Pedido de tóner registrado correctamente', toner: nuevoToner });
   } catch (error) {
     console.error('❌ Error al registrar pedido de tóner:', error);
@@ -167,12 +237,13 @@ app.patch('/toners/:id', async (req, res) => {
     if (!toner) return res.status(404).json({ error: 'Tóner no encontrado' });
 
     // ✅ Notificación cuando se asigna un técnico
-    if (!tonerAnterior.tecnicoAsignado && toner.tecnicoAsignado) {
-      enviarNotificacion({
-        title: '👨‍🔧 Técnico asignado a tóner',
-        body: `${toner.empresa} - ${toner.area}: Técnico ${toner.tecnicoAsignado} ha sido asignado.`,
-      });
-    }
+if (!tonerAnterior.tecnicoAsignado && toner.tecnicoAsignado) {
+  enviarNotificacionACliente({
+    clienteId: toner.clienteId,
+    title: '👨‍🔧 Técnico asignado a tu pedido de tóner',
+    body: `Técnico ${toner.tecnicoAsignado} ha sido asignado a tu pedido en ${toner.empresa} - ${toner.area}.`,
+  });
+}
 
     res.json(toner);
   } catch (error) {
@@ -254,11 +325,12 @@ app.patch('/tickets/:id', async (req, res) => {
 
     // ✅ Notificación cuando se asigna un técnico
     if (!ticketAnterior.tecnicoAsignado && ticket.tecnicoAsignado) {
-      enviarNotificacion({
-        title: '👨‍🔧 Técnico asignado',
-        body: `${ticket.empresa} - ${ticket.area}: Técnico ${ticket.tecnicoAsignado} ha sido asignado.`,
-      });
-    }
+  enviarNotificacionACliente({
+    clienteId: ticket.clienteId,
+    title: '👨‍🔧 Técnico asignado a tu ticket',
+    body: `Técnico ${ticket.tecnicoAsignado} ha sido asignado a tu ticket en ${ticket.empresa} - ${ticket.area}.`,
+  });
+}
 
     res.json(ticket);
   } catch (error) {
@@ -374,6 +446,31 @@ app.post('/validar-licencia', async (req, res) => {
   res.json({ validado: true });
 });
 
+app.post('/registrar-token', async (req, res) => {
+  const { clienteId, expoPushToken } = req.body;
+
+  if (!clienteId || !expoPushToken) {
+    return res.status(400).json({ error: 'Datos incompletos' });
+  }
+
+  try {
+    const existente = await PushToken.findOne({ clienteId });
+
+    if (existente) {
+      existente.expoPushToken = expoPushToken;
+      await existente.save();
+    } else {
+      const nuevo = new PushToken({ clienteId, expoPushToken });
+      await nuevo.save();
+    }
+
+    res.status(200).json({ message: '✅ Token registrado correctamente' });
+  } catch (error) {
+    console.error('❌ Error al guardar token push:', error);
+    res.status(500).json({ error: 'Error interno al guardar token' });
+  }
+});
+
 app.get('/tickets-tecnico', async (req, res) => {
   const licencia = req.headers['tecnico-licencia'];
 
@@ -431,4 +528,6 @@ app.get('/toners-tecnico', async (req, res) => {
 const PORT = 3000;
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}`);
+  
 });
+
