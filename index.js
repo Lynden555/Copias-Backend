@@ -161,7 +161,7 @@ const upload = multer({ storage });
 app.post('/tickets', upload.array('fotos'), async (req, res) => {
   try {
     const { clienteNombre, empresa, area, telefono, impresora, descripcionFalla, clienteId } = req.body;
-    const fotos = req.files?.map(file => `http://localhost:3000/uploads/${file.filename}`) || [];
+    const fotos = req.files?.map(file => `https://copias-backend-production.up.railway.app/uploads/${file.filename}`) || [];
 
     const nuevoTicket = new Ticket({
       clienteNombre,
@@ -182,9 +182,10 @@ app.post('/tickets', upload.array('fotos'), async (req, res) => {
       body: `${empresa} - ${area}: ${descripcionFalla}`,
     });
 
-    enviarNotificacionExpo({
-  title: '📢 Nuevo Ticket',
-  body: `${empresa} - ${area}: ${descripcionFalla}`,
+await enviarNotificacionACliente({
+  clienteId,
+  title: '📢 Ticket creado',
+  body: `Gracias por reportar: ${descripcionFalla}`,
 });
 
     res.json(nuevoTicket);
@@ -216,9 +217,10 @@ app.post('/toner', upload.none(), async (req, res) => {
       body: `${empresa} - ${area} ha solicitado un tóner`,
     });
 
-    enviarNotificacionExpo({
-  title: '🟣 Nuevo pedido de tóner',
-  body: `${empresa} - ${area} ha solicitado un tóner`,
+await enviarNotificacionACliente({
+  clienteId,
+  title: '🟣 Pedido registrado',
+  body: `Tu pedido de tóner fue recibido correctamente.`,
 });
 
     res.status(201).json({ message: 'Pedido de tóner registrado correctamente', toner: nuevoToner });
@@ -400,7 +402,7 @@ app.patch('/tecnicos/:id', upload.single('foto'), async (req, res) => {
     }
 
     if (req.file) {
-      const fotoUrl = `http://localhost:3000/uploads/${req.file.filename}`;
+      const fotoUrl = `https://copias-backend-production.up.railway.app/uploads/${req.file.filename}`;
       tecnico.fotoUrl = fotoUrl;
     }
 
@@ -449,17 +451,29 @@ app.post('/validar-licencia', async (req, res) => {
 app.post('/registrar-token', async (req, res) => {
   const { clienteId, expoPushToken } = req.body;
 
+  // Validación de campos obligatorios
   if (!clienteId || !expoPushToken) {
-    return res.status(400).json({ error: 'Datos incompletos' });
+    return res.status(400).json({ error: '❌ Datos incompletos' });
+  }
+
+  // Validación de formato básico del token
+  if (typeof expoPushToken !== 'string' || !expoPushToken.startsWith('ExponentPushToken')) {
+    return res.status(400).json({ error: '❌ Token inválido' });
   }
 
   try {
-    const existente = await PushToken.findOne({ clienteId });
+    // Opcional: eliminar todos los tokens anteriores del mismo cliente si solo quieres guardar 1
+    // await PushToken.deleteMany({ clienteId });
+
+    // Buscar si ya existe ese token exacto
+    const existente = await PushToken.findOne({ clienteId, expoPushToken });
 
     if (existente) {
+      // Ya existe, actualiza si deseas (en este caso solo se guarda el mismo de nuevo)
       existente.expoPushToken = expoPushToken;
       await existente.save();
     } else {
+      // No existe, lo guardamos
       const nuevo = new PushToken({ clienteId, expoPushToken });
       await nuevo.save();
     }
@@ -467,10 +481,9 @@ app.post('/registrar-token', async (req, res) => {
     res.status(200).json({ message: '✅ Token registrado correctamente' });
   } catch (error) {
     console.error('❌ Error al guardar token push:', error);
-    res.status(500).json({ error: 'Error interno al guardar token' });
+    res.status(500).json({ error: '❌ Error interno al guardar token' });
   }
 });
-
 app.get('/tickets-tecnico', async (req, res) => {
   const licencia = req.headers['tecnico-licencia'];
 
@@ -493,7 +506,7 @@ app.post('/tickets/:id/finalizar', upload.array('fotosTecnico'), async (req, res
     if (!ticket) return res.status(404).json({ error: 'Ticket no encontrado' });
 
     const comentario = req.body.comentario || '';
-    const nuevasFotos = req.files?.map(file => `http://localhost:3000/uploads/${file.filename}`) || [];
+    const nuevasFotos = req.files?.map(file => `https://copias-backend-production.up.railway.app/uploads/${file.filename}`) || [];
 
 ticket.estado = 'Terminado';
 
