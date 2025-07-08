@@ -42,6 +42,30 @@ const enviarNotificacion = (payload) => {
   );
 };
 
+const enviarNotificacionATecnico = async ({ tecnicoId, title, body }) => {
+  try {
+    const tokenData = await PushToken.findOne({ clienteId: tecnicoId });
+    if (!tokenData || !Expo.isExpoPushToken(tokenData.expoPushToken)) {
+      console.log(`❌ Token inválido o no encontrado para técnico: ${tecnicoId}`);
+      return;
+    }
+
+    const mensaje = [{
+      to: tokenData.expoPushToken,
+      sound: 'default',
+      title,
+      body,
+    }];
+
+    await expo.sendPushNotificationsAsync(mensaje);
+    console.log('📤 Notificación enviada al técnico:', tecnicoId);
+  } catch (error) {
+    console.error('❌ Error al notificar al técnico:', error);
+  }
+};
+
+
+
 const enviarNotificacionExpo = async ({ title, body }) => {
   try {
     const tokensDB = await PushToken.find();
@@ -145,6 +169,7 @@ const Usuario = mongoose.model('Usuario', usuarioSchema);
 const pushTokenSchema = new mongoose.Schema({
   clienteId: { type: String, required: true },
   expoPushToken: { type: String, required: true },
+  
 });
 const PushToken = mongoose.model('PushToken', pushTokenSchema);
 
@@ -245,6 +270,11 @@ if (!tonerAnterior.tecnicoAsignado && toner.tecnicoAsignado) {
     title: '👨‍🔧 Técnico asignado a tu pedido de tóner',
     body: `Técnico ${toner.tecnicoAsignado} ha sido asignado a tu pedido en ${toner.empresa} - ${toner.area}.`,
   });
+  enviarNotificacionATecnico({
+    tecnicoId: toner.tecnicoAsignado,
+    title: '📦 Pedido de tóner asignado',
+    body: `Se te asignó un pedido de tóner en ${toner.empresa} - ${toner.area}.`,
+  });
 }
 
     res.json(toner);
@@ -327,10 +357,15 @@ app.patch('/tickets/:id', async (req, res) => {
 
     // ✅ Notificación cuando se asigna un técnico
     if (!ticketAnterior.tecnicoAsignado && ticket.tecnicoAsignado) {
-  enviarNotificacionACliente({
+    enviarNotificacionACliente({
     clienteId: ticket.clienteId,
     title: '👨‍🔧 Técnico asignado a tu ticket',
     body: `Técnico ${ticket.tecnicoAsignado} ha sido asignado a tu ticket en ${ticket.empresa} - ${ticket.area}.`,
+    });
+    enviarNotificacionATecnico({
+    tecnicoId: ticket.tecnicoAsignado,
+    title: '📥 Nuevo ticket asignado',
+    body: `Se te asignó un ticket de ${ticket.empresa} - ${ticket.area}.`,
   });
 }
 
