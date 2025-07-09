@@ -495,10 +495,14 @@ app.post('/registrar-token', async (req, res) => {
   }
 
   try {
-    // Borra tokens anteriores con el mismo token (sea cliente o técnico)
+    // 1️⃣ Borra tokens con mismo pushToken
     await PushToken.deleteMany({ expoPushToken });
 
-    // Guarda el nuevo token correctamente
+    // 2️⃣ Borra tokens previos del mismo clienteId o tecnicoId (si existen)
+    if (clienteId) await PushToken.deleteMany({ clienteId });
+    if (tecnicoId) await PushToken.deleteMany({ tecnicoId });
+
+    // 3️⃣ Guarda el nuevo
     const nuevoToken = new PushToken({ clienteId, tecnicoId, expoPushToken });
     await nuevoToken.save();
 
