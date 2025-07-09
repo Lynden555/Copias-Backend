@@ -44,7 +44,7 @@ const enviarNotificacion = (payload) => {
 
 const enviarNotificacionATecnico = async ({ tecnicoId, title, body }) => {
   try {
-    const tokenData = await PushToken.findOne({ clienteId: tecnicoId });
+    const tokenData = await PushToken.findOne({ tecnicoId });
     if (!tokenData || !Expo.isExpoPushToken(tokenData.expoPushToken)) {
       console.log(`❌ Token inválido o no encontrado para técnico: ${tecnicoId}`);
       return;
@@ -167,9 +167,9 @@ const usuarioSchema = new mongoose.Schema({
 const Usuario = mongoose.model('Usuario', usuarioSchema);
 
 const pushTokenSchema = new mongoose.Schema({
-  clienteId: { type: String, required: true },
+  clienteId: { type: String, default: null },
+  tecnicoId: { type: String, default: null },
   expoPushToken: { type: String, required: true },
-  
 });
 const PushToken = mongoose.model('PushToken', pushTokenSchema);
 
@@ -484,32 +484,28 @@ app.post('/validar-licencia', async (req, res) => {
 });
 
 app.post('/registrar-token', async (req, res) => {
-  const { clienteId, expoPushToken } = req.body;
+  const { clienteId, tecnicoId, expoPushToken } = req.body;
 
-  // Validación de campos obligatorios
-  if (!clienteId || !expoPushToken) {
+  if ((!clienteId && !tecnicoId) || !expoPushToken) {
     return res.status(400).json({ error: '❌ Datos incompletos' });
   }
 
-  // Validación de formato básico del token
-  if (typeof expoPushToken !== 'string' || !expoPushToken.startsWith('ExponentPushToken')) {
+  if (!expoPushToken?.startsWith('ExponentPushToken')) {
     return res.status(400).json({ error: '❌ Token inválido' });
   }
 
   try {
-    // Opcional: eliminar todos los tokens anteriores del mismo cliente si solo quieres guardar 1
-    // await PushToken.deleteMany({ clienteId });
+    let query = { expoPushToken };
+    if (clienteId) query.clienteId = clienteId;
+    if (tecnicoId) query.tecnicoId = tecnicoId;
 
-    // Buscar si ya existe ese token exacto
-    const existente = await PushToken.findOne({ clienteId, expoPushToken });
+    const existente = await PushToken.findOne(query);
 
     if (existente) {
-      // Ya existe, actualiza si deseas (en este caso solo se guarda el mismo de nuevo)
       existente.expoPushToken = expoPushToken;
       await existente.save();
     } else {
-      // No existe, lo guardamos
-      const nuevo = new PushToken({ clienteId, expoPushToken });
+      const nuevo = new PushToken({ clienteId, tecnicoId, expoPushToken });
       await nuevo.save();
     }
 
@@ -519,6 +515,7 @@ app.post('/registrar-token', async (req, res) => {
     res.status(500).json({ error: '❌ Error interno al guardar token' });
   }
 });
+
 app.get('/tickets-tecnico', async (req, res) => {
   const licencia = req.headers['tecnico-licencia'];
 
