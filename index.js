@@ -202,7 +202,7 @@ app.post('/tickets', upload.array('fotos'), async (req, res) => {
     await nuevoTicket.save();
 
     // ✅ Enviar notificación push
-    enviarNotificacion({
+    await enviarNotificacionACliente({
       title: '📢 Nuevo Ticket',
       body: `${empresa} - ${area}: ${descripcionFalla}`,
     });
@@ -237,7 +237,7 @@ app.post('/toner', upload.none(), async (req, res) => {
     console.log('✅ Pedido de tóner guardado:', nuevoToner);
 
     // ✅ Enviar notificación push
-    enviarNotificacion({
+    await enviarNotificacionACliente({
       title: '🟣 Nuevo pedido de tóner',
       body: `${empresa} - ${area} ha solicitado un tóner`,
     });
@@ -495,9 +495,12 @@ app.post('/registrar-token', async (req, res) => {
   }
 
   try {
-    let query = { expoPushToken };
-    if (clienteId) query.clienteId = clienteId;
-    if (tecnicoId) query.tecnicoId = tecnicoId;
+      // Borra tokens anteriores con ese mismo expoPushToken
+      await PushToken.deleteMany({ expoPushToken });
+
+      // Ahora guarda limpio
+      const nuevo = new PushToken({ clienteId, tecnicoId, expoPushToken });
+      await nuevo.save();
 
     const existente = await PushToken.findOne(query);
 
@@ -568,6 +571,14 @@ app.get('/toners-tecnico', async (req, res) => {
     console.error('Error al obtener tóners para técnico:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
+});
+
+app.post('/logout-token', async (req, res) => {
+  const { expoPushToken } = req.body;
+  if (!expoPushToken) return res.status(400).json({ error: 'Token faltante' });
+
+  await PushToken.deleteMany({ expoPushToken });
+  res.status(200).json({ message: 'Token eliminado' });
 });
 
 const PORT = 3000;
