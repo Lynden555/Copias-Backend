@@ -490,27 +490,17 @@ app.post('/registrar-token', async (req, res) => {
     return res.status(400).json({ error: '❌ Datos incompletos' });
   }
 
-  if (!expoPushToken?.startsWith('ExponentPushToken')) {
+  if (!expoPushToken.startsWith('ExponentPushToken')) {
     return res.status(400).json({ error: '❌ Token inválido' });
   }
 
   try {
-      // Borra tokens anteriores con ese mismo expoPushToken
-      await PushToken.deleteMany({ expoPushToken });
+    // Borra tokens anteriores con el mismo token (sea cliente o técnico)
+    await PushToken.deleteMany({ expoPushToken });
 
-      // Ahora guarda limpio
-      const nuevo = new PushToken({ clienteId, tecnicoId, expoPushToken });
-      await nuevo.save();
-
-    const existente = await PushToken.findOne(query);
-
-    if (existente) {
-      existente.expoPushToken = expoPushToken;
-      await existente.save();
-    } else {
-      const nuevo = new PushToken({ clienteId, tecnicoId, expoPushToken });
-      await nuevo.save();
-    }
+    // Guarda el nuevo token correctamente
+    const nuevoToken = new PushToken({ clienteId, tecnicoId, expoPushToken });
+    await nuevoToken.save();
 
     res.status(200).json({ message: '✅ Token registrado correctamente' });
   } catch (error) {
