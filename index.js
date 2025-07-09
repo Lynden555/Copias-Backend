@@ -66,9 +66,9 @@ const enviarNotificacionATecnico = async ({ tecnicoId, title, body }) => {
 
 
 
-const enviarNotificacionExpo = async ({ title, body }) => {
+const enviarNotificacionAClientes = async ({ title, body }) => {
   try {
-    const tokensDB = await PushToken.find();
+    const tokensDB = await PushToken.find({ clienteId: { $ne: null } });
 
     const mensajes = tokensDB
       .filter(t => Expo.isExpoPushToken(t.expoPushToken))
@@ -80,19 +80,39 @@ const enviarNotificacionExpo = async ({ title, body }) => {
       }));
 
     const chunks = expo.chunkPushNotifications(mensajes);
-
-    if (mensajes.length === 0) {
-  console.log('📭 No hay tokens válidos para notificar');
-  return;
-}
     for (let chunk of chunks) {
       await expo.sendPushNotificationsAsync(chunk);
     }
-    console.log('📤 Notificaciones Expo enviadas');
+    console.log('📤 Notificaciones enviadas a CLIENTES');
   } catch (error) {
-    console.error('❌ Error al enviar notificaciones Expo:', error);
+    console.error('❌ Error al enviar notificación a clientes:', error);
   }
 };
+
+const enviarNotificacionATecnicos = async ({ title, body }) => {
+  try {
+    const tokensDB = await PushToken.find({ tecnicoId: { $ne: null } });
+
+    const mensajes = tokensDB
+      .filter(t => Expo.isExpoPushToken(t.expoPushToken))
+      .map(t => ({
+        to: t.expoPushToken,
+        sound: 'default',
+        title,
+        body,
+      }));
+
+    const chunks = expo.chunkPushNotifications(mensajes);
+    for (let chunk of chunks) {
+      await expo.sendPushNotificationsAsync(chunk);
+    }
+    console.log('📤 Notificaciones enviadas a TÉCNICOS');
+  } catch (error) {
+    console.error('❌ Error al enviar notificación a técnicos:', error);
+  }
+};
+
+
 
 const enviarNotificacionACliente = async ({ clienteId, title, body }) => {
   try {
@@ -200,12 +220,6 @@ app.post('/tickets', upload.array('fotos'), async (req, res) => {
     });
 
     await nuevoTicket.save();
-
-    // ✅ Enviar notificación push
-    await enviarNotificacionACliente({
-      title: '📢 Nuevo Ticket',
-      body: `${empresa} - ${area}: ${descripcionFalla}`,
-    });
 
 await enviarNotificacionACliente({
   clienteId,
@@ -496,11 +510,13 @@ app.post('/registrar-token', async (req, res) => {
 
   try {
     // 1️⃣ Borra tokens con mismo pushToken
-    await PushToken.deleteMany({ expoPushToken });
-
-    // 2️⃣ Borra tokens previos del mismo clienteId o tecnicoId (si existen)
-    if (clienteId) await PushToken.deleteMany({ clienteId });
-    if (tecnicoId) await PushToken.deleteMany({ tecnicoId });
+await PushToken.deleteMany({
+  $or: [
+    { expoPushToken },
+    { clienteId: clienteId || null },
+    { tecnicoId: tecnicoId || null },
+  ],
+});
 
     // 3️⃣ Guarda el nuevo
     const nuevoToken = new PushToken({ clienteId, tecnicoId, expoPushToken });
