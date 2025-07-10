@@ -26,21 +26,43 @@ webpush.setVapidDetails(
   privateKey
 );
 
-// ✅ Almacén temporal de suscripciones (puedes mover esto a base de datos)
-let suscripciones = [];
+ const webPushSubscriptionSchema = new mongoose.Schema({
+  tecnicoId: { type: String, required: true },
+  subscription: { type: Object, required: true }
+  });
+  const WebPushSubscription = mongoose.model('WebPushSubscription', webPushSubscriptionSchema);
 
-app.post('/suscribirse', (req, res) => {
-  const suscripcion = req.body;
-  suscripciones.push(suscripcion);
-  res.status(201).json({ message: '✅ Suscripción registrada' });
+app.post('/suscribirse', async (req, res) => {
+  const { subscription, tecnicoId } = req.body;
+
+  if (!subscription || !tecnicoId) {
+    return res.status(400).json({ error: 'Faltan datos: subscription o tecnicoId' });
+  }
+
+  // Validar si el técnico existe
+  const tecnico = await Tecnico.findOne({ tecnicoId });
+  if (!tecnico) {
+    return res.status(404).json({ error: 'Técnico no encontrado' });
+  }
+
+  try {
+    // Elimina suscripciones duplicadas de ese técnico
+    await WebPushSubscription.deleteMany({ tecnicoId });
+
+    const nuevaSuscripcion = new WebPushSubscription({
+      tecnicoId,
+      subscription
+    });
+
+    await nuevaSuscripcion.save();
+    res.status(201).json({ message: '✅ Suscripción registrada correctamente' });
+  } catch (error) {
+    console.error('❌ Error al guardar suscripción:', error);
+    res.status(500).json({ error: 'Error al guardar suscripción' });
+  }
 });
 
-// ✅ Función para enviar notificaciones a todos
-const enviarNotificacion = (payload) => {
-  suscripciones.forEach(sub =>
-    webpush.sendNotification(sub, JSON.stringify(payload)).catch(err => console.error('❌ Error al enviar noti:', err))
-  );
-};
+
 
 const enviarNotificacionATecnico = async ({ tecnicoId, title, body }) => {
   try {
@@ -71,6 +93,23 @@ const enviarNotificacionATecnico = async ({ tecnicoId, title, body }) => {
   }
 };
 
+const enviarNotificacionWebPushATecnico = async ({ tecnicoId, title, body }) => {
+  try {
+    const suscripciones = await WebPushSubscription.find({ tecnicoId });
+
+    const promesas = suscripciones.map(sub =>
+      webpush.sendNotification(
+        sub.subscription,
+        JSON.stringify({ title, body })
+      ).catch(err => console.error('❌ Error Web Push:', err))
+    );
+
+    await Promise.all(promesas);
+    console.log(`📤 Notificaciones Web Push enviadas a técnicoId: ${tecnicoId}`);
+  } catch (error) {
+    console.error('❌ Error al enviar notificación Web Push:', error);
+  }
+};
 
 
 const enviarNotificacionAClientes = async ({ title, body }) => {
@@ -149,6 +188,8 @@ mongoose
   .connect('mongodb+srv://DiegoLLera:666bonus@cluster0.l40i6a0.mongodb.net/copiadoras?retryWrites=true&w=majority&appName=Cluster0')
   .then(() => console.log('✅ Conectado a MongoDB Atlas correctamente'))
   .catch((err) => console.error('❌ Error al conectar a MongoDB Atlas:', err));
+
+
 
 const ticketSchema = new mongoose.Schema({
   clienteNombre: String,
@@ -293,11 +334,17 @@ if (!tonerAnterior.tecnicoAsignado && toner.tecnicoAsignado) {
     title: '👨‍🔧 Técnico asignado a tu pedido de tóner',
     body: `Técnico ${toner.tecnicoAsignado} ha sido asignado a tu pedido en ${toner.empresa} - ${toner.area}.`,
   });
-  enviarNotificacionATecnico({
-    tecnicoId: toner.tecnicoAsignado,
-    title: '📦 Pedido de tóner asignado',
-    body: `Se te asignó un pedido de tóner en ${toner.empresa} - ${toner.area}.`,
-  });
+enviarNotificacionWebPushATecnico({
+  tecnicoId: toner.tecnicoAsignado,
+  title: '📦 Nuevo pedido de tóner',
+  body: `Tienes un pedido en ${toner.empresa} - ${toner.area}`
+});
+
+await enviarNotificacionATecnico({
+  tecnicoId: toner.tecnicoAsignado,
+  title: '📦 Nuevo pedido de tóner',
+  body: `Tienes un pedido en ${toner.empresa} - ${toner.area}`
+});
 }
 
     res.json(toner);
@@ -385,11 +432,18 @@ app.patch('/tickets/:id', async (req, res) => {
     title: '👨‍🔧 Técnico asignado a tu ticket',
     body: `Técnico ${ticket.tecnicoAsignado} ha sido asignado a tu ticket en ${ticket.empresa} - ${ticket.area}.`,
     });
-    enviarNotificacionATecnico({
-    tecnicoId: ticket.tecnicoAsignado,
-    title: '📥 Nuevo ticket asignado',
-    body: `Se te asignó un ticket de ${ticket.empresa} - ${ticket.area}.`,
-  });
+
+    enviarNotificacionWebPushATecnico({
+      tecnicoId: ticket.tecnicoAsignado,
+      title: '📥 Nuevo ticket asignado',
+      body: `Tienes un ticket en ${ticket.empresa} - ${ticket.area}`
+    });
+
+    await enviarNotificacionATecnico({
+  tecnicoId: ticket.tecnicoAsignado,
+  title: '📥 Nuevo ticket asignado',
+  body: `Tienes un ticket en ${ticket.empresa} - ${ticket.area}`
+});
 }
 
     res.json(ticket);
