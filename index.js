@@ -4,8 +4,6 @@ const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
 const bcrypt = require('bcrypt');
-const webpush = require('web-push'); // ✅ Nuevo
-const { publicKey, privateKey } = require('./vapidkeys'); // ✅ Nuevo
 const { Expo } = require('expo-server-sdk');
 const expo = new Expo();
 
@@ -55,23 +53,36 @@ app.post('/suscribirse', async (req, res) => {
 
 const enviarNotificacionATecnico = async ({ tecnicoId, title, body }) => {
   try {
-    const tokenData = await PushToken.findOne({ tecnicoId });
-    if (!tokenData || !Expo.isExpoPushToken(tokenData.expoPushToken)) {
-      console.log(`❌ Token inválido o no encontrado para tecnicoId: ${tecnicoId}`);
+    // Buscar TODOS los tokens del técnico
+    const tokensDB = await PushToken.find({ tecnicoId });
+    
+    // Filtrar tokens válidos
+    const tokensValidos = tokensDB.filter(t => 
+      Expo.isExpoPushToken(t.expoPushToken)
+    );
+
+    if (tokensValidos.length === 0) {
+      console.log(`❌ No hay tokens válidos para tecnicoId: ${tecnicoId}`);
       return;
     }
 
-    const mensaje = [{
-      to: tokenData.expoPushToken,
+    console.log(`📤 Enviando a ${tokensValidos.length} dispositivos del técnico ${tecnicoId}`);
+
+    // Crear mensajes
+    const mensajes = tokensValidos.map(t => ({
+      to: t.expoPushToken,
       sound: 'default',
       title,
       body,
-    }];
+    }));
 
-    await expo.sendPushNotificationsAsync(mensaje);
-    console.log('📤 Notificación enviada a Tecnico:', tecnicoId);
+    // Enviar en chunks
+    const chunks = expo.chunkPushNotifications(mensajes);
+    for (let chunk of chunks) {
+      await expo.sendPushNotificationsAsync(chunk);
+    }
   } catch (error) {
-    console.error('❌ Error al enviar notificación a tecnico:', error);
+    console.error('❌ Error al notificar al técnico:', error);
   }
 };
 
@@ -245,7 +256,7 @@ if (!tonerAnterior.tecnicoAsignado && toner.tecnicoAsignado) {
   });
 
   await enviarNotificacionATecnico({
-  tecnicoId: toner.tecnicoAsignado,
+  tecnicoId: toner.tecnicoId,
   title: '📦 Nuevo pedido de tóner',
   body: `Tienes un pedido en ${toner.empresa} - ${toner.area}`
 });
@@ -338,7 +349,7 @@ app.patch('/tickets/:id', async (req, res) => {
     });
 
     await enviarNotificacionATecnico({
-    tecnicoId: ticket.tecnicoAsignado,
+    tecnicoId: ticket.tecnicoId,
     title: '📥 Nuevo ticket asignado',
     body: `Tienes un ticket en ${ticket.empresa} - ${ticket.area}`
 });
@@ -460,34 +471,37 @@ app.post('/validar-licencia', async (req, res) => {
 });
 
 app.post('/registrar-token', async (req, res) => {
-  const { clienteId, tecnicoId, expoPushToken } = req.body;
+  const { clienteId, tecnicoId, expoPushToken, appType } = req.body;
 
-  if ((!clienteId && !tecnicoId) || !expoPushToken) {
-    return res.status(400).json({ error: '❌ Datos incompletos' });
+  if (!expoPushToken) {
+    return res.status(400).json({ error: 'Token faltante' });
   }
 
-  if (!expoPushToken.startsWith('ExponentPushToken')) {
-    return res.status(400).json({ error: '❌ Token inválido' });
+  if (!appType) {
+    return res.status(400).json({ error: 'Tipo de app no especificado (cliente/tecnico)' });
   }
 
   try {
-    // 1️⃣ Borra tokens con mismo pushToken
-await PushToken.deleteMany({
-  $or: [
-    { expoPushToken },
-    { clienteId: clienteId || null },
-    { tecnicoId: tecnicoId || null },
-  ],
-});
+    // Eliminar tokens existentes para este dispositivo
+    await PushToken.deleteMany({ expoPushToken });
 
-    // 3️⃣ Guarda el nuevo
-    const nuevoToken = new PushToken({ clienteId, tecnicoId, expoPushToken });
+    let nuevoToken;
+    if (appType === 'cliente' && clienteId) {
+      nuevoToken = new PushToken({ clienteId, expoPushToken });
+    } 
+    else if (appType === 'tecnico' && tecnicoId) {
+      nuevoToken = new PushToken({ tecnicoId, expoPushToken });
+    }
+    else {
+      return res.status(400).json({ error: 'Combinación inválida de parámetros' });
+    }
+
     await nuevoToken.save();
-
-    res.status(200).json({ message: '✅ Token registrado correctamente' });
+    console.log(`✅ Token registrado para ${appType}: ${clienteId || tecnicoId}`);
+    res.status(200).json({ message: 'Token registrado correctamente' });
   } catch (error) {
-    console.error('❌ Error al guardar token push:', error);
-    res.status(500).json({ error: '❌ Error interno al guardar token' });
+    console.error('❌ Error al guardar token:', error);
+    res.status(500).json({ error: 'Error interno al guardar token' });
   }
 });
 
