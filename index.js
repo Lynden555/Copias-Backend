@@ -19,18 +19,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// ✅ Configuración de web-push
-webpush.setVapidDetails(
-  'mailto:soporte@tuservidor.com',
-  publicKey,
-  privateKey
-);
-
- const webPushSubscriptionSchema = new mongoose.Schema({
-  tecnicoId: { type: String, required: true },
-  subscription: { type: Object, required: true }
-  });
-  const WebPushSubscription = mongoose.model('WebPushSubscription', webPushSubscriptionSchema);
+ 
 
 app.post('/suscribirse', async (req, res) => {
   const { subscription, tecnicoId } = req.body;
@@ -66,48 +55,37 @@ app.post('/suscribirse', async (req, res) => {
 
 const enviarNotificacionATecnico = async ({ tecnicoId, title, body }) => {
   try {
+    // 1️⃣ Buscar TODOS los tokens del técnico (no solo uno)
     const tokensDB = await PushToken.find({ tecnicoId });
+    
+    // 2️⃣ Filtrar solo tokens válidos de Expo
+    const tokensValidos = tokensDB.filter(t => 
+      Expo.isExpoPushToken(t.expoPushToken)
+    );
 
-    const mensajes = tokensDB
-      .filter(t => Expo.isExpoPushToken(t.expoPushToken))
-      .map(t => ({
-        to: t.expoPushToken,
-        sound: 'default',
-        title,
-        body,
-      }));
-
-    if (mensajes.length === 0) {
+    if (tokensValidos.length === 0) {
       console.log(`❌ No hay tokens válidos para tecnicoId: ${tecnicoId}`);
       return;
     }
 
+    console.log(`📤 Enviando notificación a ${tokensValidos.length} dispositivos del técnico ${tecnicoId}`);
+
+    // 3️⃣ Crear mensajes individuales
+    const mensajes = tokensValidos.map(t => ({
+      to: t.expoPushToken,
+      sound: 'default',
+      title,
+      body,
+    }));
+
+    // 4️⃣ Enviar en chunks (igual que para clientes)
     const chunks = expo.chunkPushNotifications(mensajes);
     for (let chunk of chunks) {
       await expo.sendPushNotificationsAsync(chunk);
     }
 
-    console.log('📤 Notificación enviada al técnico:', tecnicoId);
   } catch (error) {
     console.error('❌ Error al notificar al técnico:', error);
-  }
-};
-
-const enviarNotificacionWebPushATecnico = async ({ tecnicoId, title, body }) => {
-  try {
-    const suscripciones = await WebPushSubscription.find({ tecnicoId });
-
-    const promesas = suscripciones.map(sub =>
-      webpush.sendNotification(
-        sub.subscription,
-        JSON.stringify({ title, body })
-      ).catch(err => console.error('❌ Error Web Push:', err))
-    );
-
-    await Promise.all(promesas);
-    console.log(`📤 Notificaciones Web Push enviadas a técnicoId: ${tecnicoId}`);
-  } catch (error) {
-    console.error('❌ Error al enviar notificación Web Push:', error);
   }
 };
 
@@ -306,11 +284,11 @@ app.post('/toner', upload.none(), async (req, res) => {
       body: `${empresa} - ${area} ha solicitado un tóner`,
     });
 
-await enviarNotificacionACliente({
-  clienteId,
-  title: '🟣 Pedido registrado',
-  body: `Tu pedido de tóner fue recibido correctamente.`,
-});
+    await enviarNotificacionACliente({
+      clienteId,
+      title: '🟣 Pedido registrado',
+      body: `Tu pedido de tóner fue recibido correctamente.`,
+    });
 
     res.status(201).json({ message: 'Pedido de tóner registrado correctamente', toner: nuevoToner });
   } catch (error) {
@@ -334,13 +312,8 @@ if (!tonerAnterior.tecnicoAsignado && toner.tecnicoAsignado) {
     title: '👨‍🔧 Técnico asignado a tu pedido de tóner',
     body: `Técnico ${toner.tecnicoAsignado} ha sido asignado a tu pedido en ${toner.empresa} - ${toner.area}.`,
   });
-enviarNotificacionWebPushATecnico({
-  tecnicoId: toner.tecnicoAsignado,
-  title: '📦 Nuevo pedido de tóner',
-  body: `Tienes un pedido en ${toner.empresa} - ${toner.area}`
-});
 
-await enviarNotificacionATecnico({
+  enviarNotificacionATecnico({
   tecnicoId: toner.tecnicoAsignado,
   title: '📦 Nuevo pedido de tóner',
   body: `Tienes un pedido en ${toner.empresa} - ${toner.area}`
@@ -433,16 +406,10 @@ app.patch('/tickets/:id', async (req, res) => {
     body: `Técnico ${ticket.tecnicoAsignado} ha sido asignado a tu ticket en ${ticket.empresa} - ${ticket.area}.`,
     });
 
-    enviarNotificacionWebPushATecnico({
-      tecnicoId: ticket.tecnicoAsignado,
-      title: '📥 Nuevo ticket asignado',
-      body: `Tienes un ticket en ${ticket.empresa} - ${ticket.area}`
-    });
-
-    await enviarNotificacionATecnico({
-  tecnicoId: ticket.tecnicoAsignado,
-  title: '📥 Nuevo ticket asignado',
-  body: `Tienes un ticket en ${ticket.empresa} - ${ticket.area}`
+    enviarNotificacionATecnico({
+    tecnicoId: ticket.tecnicoAsignado,
+    title: '📥 Nuevo ticket asignado',
+    body: `Tienes un ticket en ${ticket.empresa} - ${ticket.area}`
 });
 }
 
