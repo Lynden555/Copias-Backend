@@ -55,88 +55,25 @@ app.post('/suscribirse', async (req, res) => {
 
 const enviarNotificacionATecnico = async ({ tecnicoId, title, body }) => {
   try {
-    // 1️⃣ Buscar TODOS los tokens del técnico (no solo uno)
-    const tokensDB = await PushToken.find({ tecnicoId });
-    
-    // 2️⃣ Filtrar solo tokens válidos de Expo
-    const tokensValidos = tokensDB.filter(t => 
-      Expo.isExpoPushToken(t.expoPushToken)
-    );
-
-    if (tokensValidos.length === 0) {
-      console.log(`❌ No hay tokens válidos para tecnicoId: ${tecnicoId}`);
+    const tokenData = await PushToken.findOne({ tecnicoId });
+    if (!tokenData || !Expo.isExpoPushToken(tokenData.expoPushToken)) {
+      console.log(`❌ Token inválido o no encontrado para tecnicoId: ${tecnicoId}`);
       return;
     }
 
-    console.log(`📤 Enviando notificación a ${tokensValidos.length} dispositivos del técnico ${tecnicoId}`);
-
-    // 3️⃣ Crear mensajes individuales
-    const mensajes = tokensValidos.map(t => ({
-      to: t.expoPushToken,
+    const mensaje = [{
+      to: tokenData.expoPushToken,
       sound: 'default',
       title,
       body,
-    }));
+    }];
 
-    // 4️⃣ Enviar en chunks (igual que para clientes)
-    const chunks = expo.chunkPushNotifications(mensajes);
-    for (let chunk of chunks) {
-      await expo.sendPushNotificationsAsync(chunk);
-    }
-
+    await expo.sendPushNotificationsAsync(mensaje);
+    console.log('📤 Notificación enviada a Tecnico:', tecnicoId);
   } catch (error) {
-    console.error('❌ Error al notificar al técnico:', error);
+    console.error('❌ Error al enviar notificación a tecnico:', error);
   }
 };
-
-
-const enviarNotificacionAClientes = async ({ title, body }) => {
-  try {
-    const tokensDB = await PushToken.find({ clienteId: { $ne: null } });
-
-    const mensajes = tokensDB
-      .filter(t => Expo.isExpoPushToken(t.expoPushToken))
-      .map(t => ({
-        to: t.expoPushToken,
-        sound: 'default',
-        title,
-        body,
-      }));
-
-    const chunks = expo.chunkPushNotifications(mensajes);
-    for (let chunk of chunks) {
-      await expo.sendPushNotificationsAsync(chunk);
-    }
-    console.log('📤 Notificaciones enviadas a CLIENTES');
-  } catch (error) {
-    console.error('❌ Error al enviar notificación a clientes:', error);
-  }
-};
-
-const enviarNotificacionATecnicos = async ({ title, body }) => {
-  try {
-    const tokensDB = await PushToken.find({ tecnicoId: { $ne: null } });
-
-    const mensajes = tokensDB
-      .filter(t => Expo.isExpoPushToken(t.expoPushToken))
-      .map(t => ({
-        to: t.expoPushToken,
-        sound: 'default',
-        title,
-        body,
-      }));
-
-    const chunks = expo.chunkPushNotifications(mensajes);
-    for (let chunk of chunks) {
-      await expo.sendPushNotificationsAsync(chunk);
-    }
-    console.log('📤 Notificaciones enviadas a TÉCNICOS');
-  } catch (error) {
-    console.error('❌ Error al enviar notificación a técnicos:', error);
-  }
-};
-
-
 
 const enviarNotificacionACliente = async ({ clienteId, title, body }) => {
   try {
@@ -277,12 +214,6 @@ app.post('/toner', upload.none(), async (req, res) => {
 
     await nuevoToner.save();
     console.log('✅ Pedido de tóner guardado:', nuevoToner);
-
-    // ✅ Enviar notificación push
-    await enviarNotificacionACliente({
-      title: '🟣 Nuevo pedido de tóner',
-      body: `${empresa} - ${area} ha solicitado un tóner`,
-    });
 
     await enviarNotificacionACliente({
       clienteId,
