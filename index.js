@@ -128,7 +128,8 @@ const ticketSchema = new mongoose.Schema({
   estado: { type: String, default: 'Pendiente' },
   tecnicoAsignado: { type: String, default: null },
   fechaCreacion: { type: Date, default: Date.now },
-  clienteId: String
+  clienteId: String,
+  tecnicoId: String
 });
 
 const Ticket = mongoose.model('Ticket', ticketSchema);
@@ -142,7 +143,8 @@ const tonerSchema = new mongoose.Schema({
   estado: { type: String, default: 'Pendiente' },
   tecnicoAsignado: { type: String, default: null },
   fechaCreacion: { type: Date, default: Date.now },
-  clienteId: String
+  clienteId: String,
+  tecnicoId: String
 });
 const Toner = mongoose.model('Toner', tonerSchema,);
 
@@ -150,7 +152,7 @@ const Toner = mongoose.model('Toner', tonerSchema,);
 const tecnicoSchema = new mongoose.Schema({
   nombre: String,
   fotoUrl: String,
-  tecnicoId: { type: String, required: true, unique: true }, // 👈 ESTE CAMPO FALTABA
+  tecnicoId: String
 });
 
 const Tecnico = mongoose.model('Tecnico', tecnicoSchema);
