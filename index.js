@@ -44,20 +44,27 @@ const enviarNotificacion = (payload) => {
 
 const enviarNotificacionATecnico = async ({ tecnicoId, title, body }) => {
   try {
-    const tokenData = await PushToken.findOne({ tecnicoId });
-    if (!tokenData || !Expo.isExpoPushToken(tokenData.expoPushToken)) {
-      console.log(`❌ Token inválido o no encontrado para técnico: ${tecnicoId}`);
+    const tokensDB = await PushToken.find({ tecnicoId });
+
+    const mensajes = tokensDB
+      .filter(t => Expo.isExpoPushToken(t.expoPushToken))
+      .map(t => ({
+        to: t.expoPushToken,
+        sound: 'default',
+        title,
+        body,
+      }));
+
+    if (mensajes.length === 0) {
+      console.log(`❌ No hay tokens válidos para tecnicoId: ${tecnicoId}`);
       return;
     }
 
-    const mensaje = [{
-      to: tokenData.expoPushToken,
-      sound: 'default',
-      title,
-      body,
-    }];
+    const chunks = expo.chunkPushNotifications(mensajes);
+    for (let chunk of chunks) {
+      await expo.sendPushNotificationsAsync(chunk);
+    }
 
-    await expo.sendPushNotificationsAsync(mensaje);
     console.log('📤 Notificación enviada al técnico:', tecnicoId);
   } catch (error) {
     console.error('❌ Error al notificar al técnico:', error);
@@ -176,7 +183,9 @@ const Toner = mongoose.model('Toner', tonerSchema,);
 const tecnicoSchema = new mongoose.Schema({
   nombre: String,
   fotoUrl: String,
+  tecnicoId: { type: String, required: true, unique: true }, // 👈 ESTE CAMPO FALTABA
 });
+
 const Tecnico = mongoose.model('Tecnico', tecnicoSchema);
 
 const usuarioSchema = new mongoose.Schema({
@@ -413,11 +422,12 @@ app.get('/tecnicos', async (req, res) => {
 // ✅ NUEVA RUTA PARA AGREGAR TÉCNICOS
 app.post('/tecnicos', async (req, res) => {
   try {
-    const { nombre, fotoUrl } = req.body;
+   const { nombre, fotoUrl, tecnicoId } = req.body;
 
     const nuevoTecnico = new Tecnico({
       nombre,
       fotoUrl,
+      tecnicoId
     });
 
     await nuevoTecnico.save();
