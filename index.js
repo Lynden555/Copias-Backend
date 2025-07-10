@@ -471,37 +471,34 @@ app.post('/validar-licencia', async (req, res) => {
 });
 
 app.post('/registrar-token', async (req, res) => {
-  const { clienteId, tecnicoId, expoPushToken, appType } = req.body;
+  const { clienteId, tecnicoId, expoPushToken } = req.body;
 
-  if (!expoPushToken) {
-    return res.status(400).json({ error: 'Token faltante' });
+  if ((!clienteId && !tecnicoId) || !expoPushToken) {
+    return res.status(400).json({ error: '❌ Datos incompletos' });
   }
 
-  if (!appType) {
-    return res.status(400).json({ error: 'Tipo de app no especificado (cliente/tecnico)' });
+  if (!expoPushToken.startsWith('ExponentPushToken')) {
+    return res.status(400).json({ error: '❌ Token inválido' });
   }
 
   try {
-    // Eliminar tokens existentes para este dispositivo
-    await PushToken.deleteMany({ expoPushToken });
+    // 1️⃣ Borra tokens con mismo pushToken
+await PushToken.deleteMany({
+  $or: [
+    { expoPushToken },
+    { clienteId: clienteId || null },
+    { tecnicoId: tecnicoId || null },
+  ],
+});
 
-    let nuevoToken;
-    if (appType === 'cliente' && clienteId) {
-      nuevoToken = new PushToken({ clienteId, expoPushToken });
-    } 
-    else if (appType === 'tecnico' && tecnicoId) {
-      nuevoToken = new PushToken({ tecnicoId, expoPushToken });
-    }
-    else {
-      return res.status(400).json({ error: 'Combinación inválida de parámetros' });
-    }
-
+    // 3️⃣ Guarda el nuevo
+    const nuevoToken = new PushToken({ clienteId, tecnicoId, expoPushToken });
     await nuevoToken.save();
-    console.log(`✅ Token registrado para ${appType}: ${clienteId || tecnicoId}`);
-    res.status(200).json({ message: 'Token registrado correctamente' });
+
+    res.status(200).json({ message: '✅ Token registrado correctamente' });
   } catch (error) {
-    console.error('❌ Error al guardar token:', error);
-    res.status(500).json({ error: 'Error interno al guardar token' });
+    console.error('❌ Error al guardar token push:', error);
+    res.status(500).json({ error: '❌ Error interno al guardar token' });
   }
 });
 
