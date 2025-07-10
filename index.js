@@ -313,7 +313,7 @@ if (!tonerAnterior.tecnicoAsignado && toner.tecnicoAsignado) {
     body: `Técnico ${toner.tecnicoAsignado} ha sido asignado a tu pedido en ${toner.empresa} - ${toner.area}.`,
   });
 
-  enviarNotificacionATecnico({
+  await enviarNotificacionATecnico({
   tecnicoId: toner.tecnicoAsignado,
   title: '📦 Nuevo pedido de tóner',
   body: `Tienes un pedido en ${toner.empresa} - ${toner.area}`
@@ -406,7 +406,7 @@ app.patch('/tickets/:id', async (req, res) => {
     body: `Técnico ${ticket.tecnicoAsignado} ha sido asignado a tu ticket en ${ticket.empresa} - ${ticket.area}.`,
     });
 
-    enviarNotificacionATecnico({
+    await enviarNotificacionATecnico({
     tecnicoId: ticket.tecnicoAsignado,
     title: '📥 Nuevo ticket asignado',
     body: `Tienes un ticket en ${ticket.empresa} - ${ticket.area}`
