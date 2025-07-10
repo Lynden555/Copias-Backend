@@ -249,20 +249,20 @@ app.patch('/toners/:id', async (req, res) => {
 
     if (!toner) return res.status(404).json({ error: 'Tóner no encontrado' });
 
-    // ✅ Notificación cuando se asigna un técnico
+  
 if (!tonerAnterior.tecnicoAsignado && toner.tecnicoAsignado) {
   enviarNotificacionACliente({
     clienteId: toner.clienteId,
     title: '👨‍🔧 Técnico asignado a tu pedido de tóner',
     body: `Técnico ${toner.tecnicoAsignado} ha sido asignado a tu pedido en ${toner.empresa} - ${toner.area}.`,
-  });
+  });}
 
-  await enviarNotificacionATecnico({
+  if (!tonerAnterior.tecnicoAsignado && toner.tecnicoAsignado) {
+  enviarNotificacionATecnico({
   tecnicoId: toner.tecnicoId,
   title: '📦 Nuevo pedido de tóner',
   body: `Tienes un pedido en ${toner.empresa} - ${toner.area}`
-});
-}
+});}
 
     res.json(toner);
   } catch (error) {
