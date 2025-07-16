@@ -52,7 +52,7 @@ app.post('/suscribirse', async (req, res) => {
 
 
 const enviarNotificacionATecnico = async ({ tecnicoId, title, body }) => {
-try {
+  try {
     const tokenData = await PushToken.findOne({ tecnicoId });
     if (!tokenData || !Expo.isExpoPushToken(tokenData.expoPushToken)) {
       console.log(`❌ Token inválido o no encontrado para tecnicoId: ${tecnicoId}`);
@@ -64,12 +64,13 @@ try {
       sound: 'default',
       title,
       body,
+      data: { tipo: 'tecnico', tecnicoId }, // 👈 Etiqueta para filtrar en app
     }];
 
     await expo.sendPushNotificationsAsync(mensaje);
-    console.log('📤 Notificación enviada a cliente:', tecnicoId);
+    console.log('📤 Notificación enviada a técnico:', tecnicoId);
   } catch (error) {
-    console.error('❌ Error al enviar notificación a cliente:', error);
+    console.error('❌ Error al enviar notificación a técnico:', error);
   }
 };
 
@@ -86,6 +87,7 @@ const enviarNotificacionACliente = async ({ clienteId, title, body }) => {
       sound: 'default',
       title,
       body,
+      data: { tipo: 'cliente', clienteId }, // 👈 Etiqueta para filtrar en app
     }];
 
     await expo.sendPushNotificationsAsync(mensaje);
