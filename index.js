@@ -250,15 +250,18 @@ app.patch('/toners/:id', async (req, res) => {
     if (!toner) return res.status(404).json({ error: 'Tóner no encontrado' });
 
   
-if (!tonerAnterior.tecnicoAsignado && toner.tecnicoAsignado) {
-  enviarNotificacionACliente({
+if (
+  (!tonerAnterior.tecnicoAsignado && toner.tecnicoAsignado) ||
+  (tonerAnterior.tecnicoAsignado !== toner.tecnicoAsignado)
+) {
+  await enviarNotificacionACliente({
     clienteId: toner.clienteId,
     title: '👨‍🔧 Técnico asignado a tu pedido de tóner',
     body: `Técnico ${toner.tecnicoAsignado} ha sido asignado a tu pedido en ${toner.empresa} - ${toner.area}.`,
-  });}
+  });
 
-  if (!tonerAnterior.tecnicoAsignado && toner.tecnicoAsignado) {
-  enviarNotificacionATecnico({
+
+  await enviarNotificacionATecnico({
   tecnicoId: toner.tecnicoId,
   title: '📦 Nuevo pedido de tóner',
   body: `Tienes un pedido en ${toner.empresa} - ${toner.area}`
@@ -343,8 +346,11 @@ app.patch('/tickets/:id', async (req, res) => {
     if (!ticket) return res.status(404).json({ error: 'Ticket no encontrado' });
 
     // ✅ Notificación cuando se asigna un técnico
-    if (!ticketAnterior.tecnicoAsignado && ticket.tecnicoAsignado) {
-    enviarNotificacionACliente({
+if (
+  (!ticketAnterior.tecnicoAsignado && ticket.tecnicoAsignado) ||
+  (ticketAnterior.tecnicoAsignado !== ticket.tecnicoAsignado)
+) {
+    await enviarNotificacionACliente({
     clienteId: ticket.clienteId,
     title: '👨‍🔧 Técnico asignado a tu ticket',
     body: `Técnico ${ticket.tecnicoAsignado} ha sido asignado a tu ticket en ${ticket.empresa} - ${ticket.area}.`,
@@ -484,13 +490,8 @@ app.post('/registrar-token', async (req, res) => {
   }
 
   try {
-    // 1️⃣ Borra tokens con mismo pushToken
 await PushToken.deleteMany({
-  $or: [
-    { expoPushToken },
-    { clienteId: clienteId || null },
-    { tecnicoId: tecnicoId || null },
-  ],
+  expoPushToken
 });
 
     // 3️⃣ Guarda el nuevo
