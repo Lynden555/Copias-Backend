@@ -52,15 +52,18 @@ app.post('/suscribirse', async (req, res) => {
 
 
 const enviarNotificacionATecnico = async ({ tecnicoId, title, body }) => {
+
+console.log(`intentando conectar con: ${tecnicoId}`);
+
   try {
     const tokensData = await PushToken.find({ tecnicoId, appType: 'tecnico' }); // 👈 Busca TODOS los tokens
-
+console.log(`tokens encontrados: ${tokensData.length}`);
     const tokensValidos = tokensData
       .map(t => t.expoPushToken)
       .filter(token => Expo.isExpoPushToken(token));
 
     if (tokensValidos.length === 0) {
-      console.log(`❌ No hay tokens válidos para clienteId: ${tecnicoId}`);
+      console.log(`❌ No hay tokens válidos para tecnocoId: ${tecnicoId}`);
       return;
     }
 
