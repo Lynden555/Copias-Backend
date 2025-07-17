@@ -521,6 +521,22 @@ app.post('/registrar-token', async (req, res) => {
   }
 });
 
+app.get('/tickets-tecnico', async (req, res) => {
+  const licencia = req.headers['tecnico-licencia'];
+
+  if (!licencia) {
+    return res.status(400).json({ error: 'Licencia no proporcionada' });
+  }
+
+  try {
+    const tickets = await Ticket.find({ tecnicoAsignado: licencia });
+    res.json(tickets);
+  } catch (error) {
+    console.error('Error al obtener tickets para técnico:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 
 
 app.post('/tickets/:id/finalizar', upload.array('fotosTecnico'), async (req, res) => {
