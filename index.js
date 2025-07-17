@@ -464,6 +464,17 @@ app.post('/login', async (req, res) => {
   }
 });
 
+app.post('/validar-licencia', async (req, res) => {
+  const { licencia } = req.body;
+
+  if (!licencia || licencia.trim() === '') {
+    return res.status(400).json({ validado: false, error: 'Licencia vacía' });
+  }
+
+  res.json({ validado: true });
+});
+
+
 app.post('/registrar-token', async (req, res) => {
   const { clienteId, tecnicoId, expoPushToken, appType } = req.body; // 👈 Recibir appType
 
