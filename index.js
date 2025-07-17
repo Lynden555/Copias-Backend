@@ -53,7 +53,7 @@ app.post('/suscribirse', async (req, res) => {
 
 const enviarNotificacionATecnico = async ({ tecnicoId, title, body }) => {
   try {
-    const tokensData = await PushToken.find({ tecnicoId }); // 👈 Busca TODOS los tokens
+    const tokensData = await PushToken.find({ tecnicoId, appType: 'tecnico' }); // 👈 Busca TODOS los tokens
 
     const tokensValidos = tokensData
       .map(t => t.expoPushToken)
@@ -82,7 +82,7 @@ const enviarNotificacionATecnico = async ({ tecnicoId, title, body }) => {
 
 const enviarNotificacionACliente = async ({ clienteId, title, body }) => {
   try {
-    const tokensData = await PushToken.find({ clienteId }); // 👈 Busca TODOS los tokens
+    const tokensData = await PushToken.find({ clienteId, appType: 'cliente' }); // 👈 Busca TODOS los tokens
 
     const tokensValidos = tokensData
       .map(t => t.expoPushToken)
@@ -169,6 +169,7 @@ const pushTokenSchema = new mongoose.Schema({
   clienteId: { type: String, default: null },
   tecnicoId: { type: String, default: null },
   expoPushToken: { type: String, required: true },
+  appType: { type: String, enum: ['cliente', 'tecnico'], required: true } // 👈 Nuevo campo
 });
 const PushToken = mongoose.model('PushToken', pushTokenSchema);
 
@@ -463,20 +464,10 @@ app.post('/login', async (req, res) => {
   }
 });
 
-app.post('/validar-licencia', async (req, res) => {
-  const { licencia } = req.body;
-
-  if (!licencia || licencia.trim() === '') {
-    return res.status(400).json({ validado: false, error: 'Licencia vacía' });
-  }
-
-  res.json({ validado: true });
-});
-
 app.post('/registrar-token', async (req, res) => {
-  const { clienteId, tecnicoId, expoPushToken } = req.body;
+  const { clienteId, tecnicoId, expoPushToken, appType } = req.body; // 👈 Recibir appType
 
-  if ((!clienteId && !tecnicoId) || !expoPushToken) {
+  if ((!clienteId && !tecnicoId) || !expoPushToken || !appType) {
     return res.status(400).json({ error: '❌ Datos incompletos' });
   }
 
@@ -485,20 +476,33 @@ app.post('/registrar-token', async (req, res) => {
   }
 
   try {
-    // 1️⃣ Verificar si el token ya existe para este dispositivo
-    const tokenExistente = await PushToken.findOne({ expoPushToken });
-    
-    if (tokenExistente) {
-      // Actualizar los IDs si es el mismo dispositivo
-      tokenExistente.clienteId = clienteId || tokenExistente.clienteId;
-      tokenExistente.tecnicoId = tecnicoId || tokenExistente.tecnicoId;
-      await tokenExistente.save();
-    } else {
-      // 2️⃣ Crear nuevo registro si no existe
-      const nuevoToken = new PushToken({ clienteId, tecnicoId, expoPushToken });
-      await nuevoToken.save();
-    }
+    // Eliminar tokens existentes para este dispositivo y appType
+    await PushToken.deleteMany({ 
+      $or: [
+        { expoPushToken },
+        { 
+          $and: [
+            { clienteId: clienteId || null },
+            { appType }
+          ]
+        },
+        { 
+          $and: [
+            { tecnicoId: tecnicoId || null },
+            { appType }
+          ]
+        }
+      ]
+    });
 
+    const nuevoToken = new PushToken({
+      clienteId,
+      tecnicoId,
+      expoPushToken,
+      appType // 👈 Guardar tipo de app
+    });
+
+    await nuevoToken.save();
     res.status(200).json({ message: '✅ Token registrado correctamente' });
   } catch (error) {
     console.error('❌ Error al guardar token push:', error);
@@ -506,21 +510,7 @@ app.post('/registrar-token', async (req, res) => {
   }
 });
 
-app.get('/tickets-tecnico', async (req, res) => {
-  const licencia = req.headers['tecnico-licencia'];
 
-  if (!licencia) {
-    return res.status(400).json({ error: 'Licencia no proporcionada' });
-  }
-
-  try {
-    const tickets = await Ticket.find({ tecnicoAsignado: licencia });
-    res.json(tickets);
-  } catch (error) {
-    console.error('Error al obtener tickets para técnico:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
-  }
-});
 
 app.post('/tickets/:id/finalizar', upload.array('fotosTecnico'), async (req, res) => {
   try {
