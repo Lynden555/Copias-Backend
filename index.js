@@ -76,22 +76,28 @@ const enviarNotificacionATecnico = async ({ tecnicoId, title, body }) => {
 
 const enviarNotificacionACliente = async ({ clienteId, title, body }) => {
   try {
-    const tokenData = await PushToken.findOne({ clienteId });
-    if (!tokenData || !Expo.isExpoPushToken(tokenData.expoPushToken)) {
-      console.log(`❌ Token inválido o no encontrado para clienteId: ${clienteId}`);
+    const tokensData = await PushToken.find({ clienteId }); // 👈 Busca TODOS los tokens
+
+    const tokensValidos = tokensData
+      .map(t => t.expoPushToken)
+      .filter(token => Expo.isExpoPushToken(token));
+
+    if (tokensValidos.length === 0) {
+      console.log(`❌ No hay tokens válidos para clienteId: ${clienteId}`);
       return;
     }
 
-    const mensaje = [{
-      to: tokenData.expoPushToken,
+    // Crear mensajes para todos los tokens
+    const mensajes = tokensValidos.map(token => ({
+      to: token,
       sound: 'default',
       title,
       body,
-      data: { tipo: 'cliente', clienteId }, // 👈 Etiqueta para filtrar en app
-    }];
+      data: { tipo: 'cliente', clienteId },
+    }));
 
-    await expo.sendPushNotificationsAsync(mensaje);
-    console.log('📤 Notificación enviada a cliente:', clienteId);
+    await expo.sendPushNotificationsAsync(mensajes);
+    console.log(`📤 Notificación enviada a ${tokensValidos.length} dispositivo(s) del cliente: ${clienteId}`);
   } catch (error) {
     console.error('❌ Error al enviar notificación a cliente:', error);
   }
@@ -473,17 +479,19 @@ app.post('/registrar-token', async (req, res) => {
   }
 
   try {
-await PushToken.deleteMany({
-  $or: [
-    { expoPushToken },
-    { clienteId: clienteId || null },
-    { tecnicoId: tecnicoId || null },
-  ],
-});
-
-    // 3️⃣ Guarda el nuevo
-    const nuevoToken = new PushToken({ clienteId, tecnicoId, expoPushToken });
-    await nuevoToken.save();
+    // 1️⃣ Verificar si el token ya existe para este dispositivo
+    const tokenExistente = await PushToken.findOne({ expoPushToken });
+    
+    if (tokenExistente) {
+      // Actualizar los IDs si es el mismo dispositivo
+      tokenExistente.clienteId = clienteId || tokenExistente.clienteId;
+      tokenExistente.tecnicoId = tecnicoId || tokenExistente.tecnicoId;
+      await tokenExistente.save();
+    } else {
+      // 2️⃣ Crear nuevo registro si no existe
+      const nuevoToken = new PushToken({ clienteId, tecnicoId, expoPushToken });
+      await nuevoToken.save();
+    }
 
     res.status(200).json({ message: '✅ Token registrado correctamente' });
   } catch (error) {
