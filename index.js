@@ -6,6 +6,19 @@ const path = require('path');
 const bcrypt = require('bcrypt');
 const { Expo } = require('expo-server-sdk');
 const expo = new Expo();
+// 🔧 Cálculo de distancia en km entre dos coordenadas
+const obtenerDistanciaKm = (lat1, lon1, lat2, lon2) => {
+  const R = 6371; // Radio de la Tierra en km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) *
+    Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
 
 const app = express();
 app.use(cors());
@@ -158,7 +171,9 @@ const Toner = mongoose.model('Toner', tonerSchema,);
 const tecnicoSchema = new mongoose.Schema({
   nombre: String,
   fotoUrl: String,
-  tecnicoId: String
+  tecnicoId: String,
+  lat: Number,
+  lng: Number
 });
 
 const Tecnico = mongoose.model('Tecnico', tecnicoSchema);
@@ -228,13 +243,18 @@ app.post('/toner', upload.none(), async (req, res) => {
   try {
     const { clienteNombre, empresa, area, telefono, impresora, clienteId } = req.body;
 
+    const latitud = req.body.latitud;
+    const longitud = req.body.longitud;
+
     const nuevoToner = new Toner({
       clienteNombre,
       empresa,
       area,
       telefono,
       impresora,
-      clienteId
+      clienteId,
+      latitud,
+      longitud
     });
 
     await nuevoToner.save();
@@ -639,6 +659,39 @@ app.post('/logout-token', async (req, res) => {
 
   await PushToken.deleteMany({ expoPushToken });
   res.status(200).json({ message: 'Token eliminado' });
+});
+
+// ✅ Buscar el técnico más cercano a unas coordenadas
+app.get('/tecnico-cercano/:lat/:lng', async (req, res) => {
+  const { lat, lng } = req.params;
+  const distanciaMax = parseFloat(req.query.distancia || 20); // Default 20km si no se manda
+
+  try {
+    const tecnicos = await Tecnico.find();
+
+    const tecnicosConDistancia = tecnicos
+      .map(t => {
+        if (!t.lat || !t.lng) return null;
+        const distancia = obtenerDistanciaKm(
+          parseFloat(lat),
+          parseFloat(lng),
+          parseFloat(t.lat),
+          parseFloat(t.lng)
+        );
+        return { ...t._doc, distancia };
+      })
+      .filter(t => t && t.distancia <= distanciaMax)
+      .sort((a, b) => a.distancia - b.distancia);
+
+    if (tecnicosConDistancia.length === 0) {
+      return res.status(404).json({ mensaje: 'No hay técnicos dentro del rango especificado' });
+    }
+
+    res.json(tecnicosConDistancia[0]); // Solo el más cercano
+  } catch (error) {
+    console.error('❌ Error al buscar técnico cercano:', error);
+    res.status(500).json({ error: 'Error interno al buscar técnico cercano' });
+  }
 });
 
 const PORT = 3000;
