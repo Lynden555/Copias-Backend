@@ -524,7 +524,7 @@ app.post('/validar-licencia', async (req, res) => {
 
 
 app.post('/registrar-token', async (req, res) => {
-  const { clienteId, tecnicoId, expoPushToken, appType } = req.body; // 👈 Recibir appType
+  const { clienteId, tecnicoId, expoPushToken, appType } = req.body;
 
   if ((!clienteId && !tecnicoId) || !expoPushToken || !appType) {
     return res.status(400).json({ error: '❌ Datos incompletos' });
@@ -535,33 +535,34 @@ app.post('/registrar-token', async (req, res) => {
   }
 
   try {
-    // Eliminar tokens existentes para este dispositivo y appType
-    await PushToken.deleteMany({ 
+    // 1️⃣ Eliminar solo tokens DUPLICADOS para este dispositivo
+    await PushToken.deleteMany({
+      expoPushToken: expoPushToken,
+      appType: appType
+    });
+
+    // 2️⃣ Verificar si ya existe un registro para este usuario+dispositivo
+    const tokenExistente = await PushToken.findOne({
       $or: [
-        { expoPushToken },
-        { 
-          $and: [
-            { clienteId: clienteId || null },
-            { appType }
-          ]
-        },
-        { 
-          $and: [
-            { tecnicoId: tecnicoId || null },
-            { appType }
-          ]
-        }
-      ]
+        { clienteId: clienteId || null },
+        { tecnicoId: tecnicoId || null }
+      ],
+      expoPushToken: expoPushToken,
+      appType: appType
     });
 
-    const nuevoToken = new PushToken({
-      clienteId,
-      tecnicoId,
-      expoPushToken,
-      appType // 👈 Guardar tipo de app
-    });
+    // 3️⃣ Si no existe, crear nuevo registro
+    if (!tokenExistente) {
+      const nuevoToken = new PushToken({
+        clienteId,
+        tecnicoId,
+        expoPushToken,
+        appType
+      });
+      
+      await nuevoToken.save();
+    }
 
-    await nuevoToken.save();
     res.status(200).json({ message: '✅ Token registrado correctamente' });
   } catch (error) {
     console.error('❌ Error al guardar token push:', error);
