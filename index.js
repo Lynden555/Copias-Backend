@@ -132,6 +132,8 @@ const ticketSchema = new mongoose.Schema({
   estado: { type: String, default: 'Pendiente' },
   tecnicoAsignado: { type: String, default: null },
   fechaCreacion: { type: Date, default: Date.now },
+  latitud: Number,
+  longitud: Number,
   clienteId: String,
   tecnicoId: String
 });
@@ -199,7 +201,9 @@ app.post('/tickets', upload.array('fotos'), async (req, res) => {
       impresora,
       descripcionFalla,
       clienteId,
-      fotos
+      fotos,
+      latitud,
+      longitud
     });
 
     await nuevoTicket.save();
