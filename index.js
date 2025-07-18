@@ -245,29 +245,47 @@ app.post('/toner', upload.none(), async (req, res) => {
     res.status(500).json({ error: 'Error al registrar pedido de tóner' });
   }
 });
-
+//////////////////////////////
 // ✅ Ruta para actualizar estado o técnico del TÓNER
 app.patch('/toners/:id', async (req, res) => {
   try {
     const tonerAnterior = await Toner.findById(req.params.id);
-    const toner = await Toner.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const updateData = req.body;
+    
+    // 👇 NUEVO CÓDIGO AQUÍ (BUSCAR TÉCNICO POR NOMBRE)
+    let tecnico = null;
+    if (updateData.tecnicoAsignado) {
+      tecnico = await Tecnico.findOne({ nombre: updateData.tecnicoAsignado });
+      if (tecnico) {
+        updateData.tecnicoId = tecnico.tecnicoId;
+      } else {
+        console.warn(`⚠️ Técnico no encontrado: ${updateData.tecnicoAsignado}`);
+      }
+    }
+    // 👆 FIN DEL NUEVO CÓDIGO
+
+    const toner = await Toner.findByIdAndUpdate(req.params.id, updateData, { new: true });
 
     if (!toner) return res.status(404).json({ error: 'Tóner no encontrado' });
 
-  
-if (!tonerAnterior.tecnicoAsignado && toner.tecnicoAsignado) {
-  await enviarNotificacionACliente({
-    clienteId: toner.clienteId,
-    title: '👨‍🔧 Técnico asignado a tu pedido de tóner',
-    body: `Técnico ${toner.tecnicoAsignado} ha sido asignado a tu pedido en ${toner.empresa} - ${toner.area}.`,
-  });
+    if (!tonerAnterior.tecnicoAsignado && toner.tecnicoAsignado) {
+      await enviarNotificacionACliente({
+        clienteId: toner.clienteId,
+        title: '👨‍🔧 Técnico asignado a tu pedido de tóner',
+        body: `Técnico ${toner.tecnicoAsignado} ha sido asignado a tu pedido en ${toner.empresa} - ${toner.area}.`,
+      });
 
-
-  await enviarNotificacionATecnico({
-  tecnicoId: toner.tecnicoId,
-  title: '📦 Nuevo pedido de tóner',
-  body: `Tienes un pedido en ${toner.empresa} - ${toner.area}`
-});}
+      // 👇 USAR EL TÉCNICO ENCONTRADO PARA LAS NOTIFICACIONES
+      if (tecnico) {
+        await enviarNotificacionATecnico({
+          tecnicoId: tecnico.tecnicoId,
+          title: '📦 Nuevo pedido de tóner',
+          body: `Tienes un pedido en ${toner.empresa} - ${toner.area}`
+        });
+      } else {
+        console.error('❌ No se pudo enviar notificación al técnico: Objeto técnico no encontrado');
+      }
+    }
 
     res.json(toner);
   } catch (error) {
@@ -275,6 +293,10 @@ if (!tonerAnterior.tecnicoAsignado && toner.tecnicoAsignado) {
     res.status(500).json({ error: 'Error al actualizar tóners' });
   }
 });
+
+//////////////////////////////////
+
+
 app.delete('/toners/:id', async (req, res) => {
   try {
     await Toner.findByIdAndDelete(req.params.id);
@@ -340,27 +362,48 @@ app.get('/toners/:id', async (req, res) => {
   }
 });
 
+////////////////////////
+
 app.patch('/tickets/:id', async (req, res) => {
   try {
     const ticketAnterior = await Ticket.findById(req.params.id);
-    const ticket = await Ticket.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const updateData = req.body;
+    
+    // 👇 NUEVO CÓDIGO AQUÍ (BUSCAR TÉCNICO POR NOMBRE)
+    let tecnico = null;
+    if (updateData.tecnicoAsignado) {
+      tecnico = await Tecnico.findOne({ nombre: updateData.tecnicoAsignado });
+      if (tecnico) {
+        updateData.tecnicoId = tecnico.tecnicoId;
+      } else {
+        console.warn(`⚠️ Técnico no encontrado: ${updateData.tecnicoAsignado}`);
+      }
+    }
+    // 👆 FIN DEL NUEVO CÓDIGO
+
+    const ticket = await Ticket.findByIdAndUpdate(req.params.id, updateData, { new: true });
 
     if (!ticket) return res.status(404).json({ error: 'Ticket no encontrado' });
 
     // ✅ Notificación cuando se asigna un técnico
-if (!ticketAnterior.tecnicoAsignado && ticket.tecnicoAsignado) {
-    await enviarNotificacionACliente({
-    clienteId: ticket.clienteId,
-    title: '👨‍🔧 Técnico asignado a tu ticket',
-    body: `Técnico ${ticket.tecnicoAsignado} ha sido asignado a tu ticket en ${ticket.empresa} - ${ticket.area}.`,
-    });
+    if (!ticketAnterior.tecnicoAsignado && ticket.tecnicoAsignado) {
+      await enviarNotificacionACliente({
+        clienteId: ticket.clienteId,
+        title: '👨‍🔧 Técnico asignado a tu ticket',
+        body: `Técnico ${ticket.tecnicoAsignado} ha sido asignado a tu ticket en ${ticket.empresa} - ${ticket.area}.`,
+      });
 
-    await enviarNotificacionATecnico({
-    tecnicoId: ticket.tecnicoId,
-    title: '📥 Nuevo ticket asignado',
-    body: `Tienes un ticket en ${ticket.empresa} - ${ticket.area}`
-});
-}
+      // 👇 USAR EL TÉCNICO ENCONTRADO PARA LAS NOTIFICACIONES
+      if (tecnico) {
+        await enviarNotificacionATecnico({
+          tecnicoId: tecnico.tecnicoId,
+          title: '📥 Nuevo ticket asignado',
+          body: `Tienes un ticket en ${ticket.empresa} - ${ticket.area}`
+        });
+      } else {
+        console.error('❌ No se pudo enviar notificación al técnico: Objeto técnico no encontrado');
+      }
+    }
 
     res.json(ticket);
   } catch (error) {
@@ -368,6 +411,8 @@ if (!ticketAnterior.tecnicoAsignado && ticket.tecnicoAsignado) {
     res.status(500).json({ error: 'Error al actualizar ticket' });
   }
 });
+
+/////////////////////
 
 app.delete('/tickets/:id', async (req, res) => {
   try {
