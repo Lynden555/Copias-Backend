@@ -193,6 +193,9 @@ app.post('/tickets', upload.array('fotos'), async (req, res) => {
     const { clienteNombre, empresa, area, telefono, impresora, descripcionFalla, clienteId } = req.body;
     const fotos = req.files?.map(file => `https://copias-backend-production.up.railway.app/uploads/${file.filename}`) || [];
 
+    const latitud = req.body.latitud;
+    const longitud = req.body.longitud;
+
     const nuevoTicket = new Ticket({
       clienteNombre,
       empresa,
