@@ -697,7 +697,12 @@ app.get('/tecnico-cercano/:lat/:lng', async (req, res) => {
 app.post('/guardar-ubicacion-tecnico', async (req, res) => {
   const { tecnicoId, lat, lng } = req.body;
 
+  console.log('📥 Recibida solicitud de ubicación');
+  console.log('➡️ tecnicoId:', tecnicoId);
+  console.log('📍 lat:', lat, '| lng:', lng);
+
   if (!tecnicoId || !lat || !lng) {
+    console.warn('❌ Faltan datos en la solicitud de ubicación');
     return res.status(400).json({ error: '❌ Faltan datos: tecnicoId, lat o lng' });
   }
 
@@ -705,6 +710,7 @@ app.post('/guardar-ubicacion-tecnico', async (req, res) => {
     const tecnico = await Tecnico.findOne({ tecnicoId });
 
     if (!tecnico) {
+      console.warn(`❌ Técnico no encontrado con tecnicoId: ${tecnicoId}`);
       return res.status(404).json({ error: '❌ Técnico no encontrado' });
     }
 
@@ -712,6 +718,7 @@ app.post('/guardar-ubicacion-tecnico', async (req, res) => {
     tecnico.lng = lng;
 
     await tecnico.save();
+    console.log(`✅ Ubicación actualizada para ${tecnico.nombre} (${tecnico.tecnicoId}):`, lat, lng);
 
     res.status(200).json({ message: '✅ Ubicación actualizada correctamente' });
   } catch (error) {
