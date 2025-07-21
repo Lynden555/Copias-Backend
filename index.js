@@ -694,6 +694,32 @@ app.get('/tecnico-cercano/:lat/:lng', async (req, res) => {
   }
 });
 
+app.post('/guardar-ubicacion-tecnico', async (req, res) => {
+  const { tecnicoId, lat, lng } = req.body;
+
+  if (!tecnicoId || !lat || !lng) {
+    return res.status(400).json({ error: '❌ Faltan datos: tecnicoId, lat o lng' });
+  }
+
+  try {
+    const tecnico = await Tecnico.findOne({ tecnicoId });
+
+    if (!tecnico) {
+      return res.status(404).json({ error: '❌ Técnico no encontrado' });
+    }
+
+    tecnico.lat = lat;
+    tecnico.lng = lng;
+
+    await tecnico.save();
+
+    res.status(200).json({ message: '✅ Ubicación actualizada correctamente' });
+  } catch (error) {
+    console.error('❌ Error al guardar ubicación del técnico:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 const PORT = 3000;
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}`);
