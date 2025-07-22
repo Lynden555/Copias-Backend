@@ -148,7 +148,8 @@ const ticketSchema = new mongoose.Schema({
   latitud: Number,
   longitud: Number,
   clienteId: String,
-  tecnicoId: String
+  tecnicoId: String,
+  tecnicoFoto: String, // ✅ nuevo campo
 });
 
 const Ticket = mongoose.model('Ticket', ticketSchema);
@@ -400,9 +401,10 @@ app.patch('/tickets/:id', async (req, res) => {
     let tecnico = null;
     if (updateData.tecnicoAsignado) {
       tecnico = await Tecnico.findOne({ nombre: updateData.tecnicoAsignado });
-      if (tecnico) {
-        updateData.tecnicoId = tecnico.tecnicoId;
-      } else {
+if (tecnico) {
+  updateData.tecnicoId = tecnico.tecnicoId;
+  updateData.tecnicoFoto = tecnico.fotoUrl; // ✅ esta línea nueva
+}     else {
         console.warn(`⚠️ Técnico no encontrado: ${updateData.tecnicoAsignado}`);
       }
     }
