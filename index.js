@@ -6,6 +6,7 @@ const path = require('path');
 const bcrypt = require('bcrypt');
 const { Expo } = require('expo-server-sdk');
 const expo = new Expo();
+const cloudinary = require('./cloudinary'); // 👈 Importación al inicio
 // 🔧 Cálculo de distancia en km entre dos coordenadas
 const obtenerDistanciaKm = (lat1, lon1, lat2, lon2) => {
   const R = 6371; // Radio de la Tierra en km
@@ -164,7 +165,8 @@ const tonerSchema = new mongoose.Schema({
   tecnicoAsignado: { type: String, default: null },
   fechaCreacion: { type: Date, default: Date.now },
   clienteId: String,
-  tecnicoId: String
+  tecnicoId: String,
+  tecnicoFoto: String, // ✅ nuevo campo
 });
 const Toner = mongoose.model('Toner', tonerSchema,);
 
@@ -204,10 +206,21 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
+
 app.post('/tickets', upload.array('fotos'), async (req, res) => {
   try {
     const { clienteNombre, empresa, area, telefono, impresora, descripcionFalla, clienteId } = req.body;
-    const fotos = req.files?.map(file => `https://copias-backend-production.up.railway.app/uploads/${file.filename}`) || [];
+    
+    const fotos = [];
+
+    if (req.files && req.files.length > 0) {
+      for (const file of req.files) {
+        const upload = await cloudinary.uploader.upload(file.path, {
+          folder: 'tickets',
+        });
+        fotos.push(upload.secure_url);
+      }
+    }
 
     const latitud = req.body.latitud;
     const longitud = req.body.longitud;
@@ -227,11 +240,11 @@ app.post('/tickets', upload.array('fotos'), async (req, res) => {
 
     await nuevoTicket.save();
 
-await enviarNotificacionACliente({
-  clienteId,
-  title: '📢 Ticket creado',
-  body: `Gracias por reportar: ${descripcionFalla}`,
-});
+    await enviarNotificacionACliente({
+      clienteId,
+      title: '📢 Ticket creado',
+      body: `Gracias por reportar: ${descripcionFalla}`,
+    });
 
     res.json(nuevoTicket);
   } catch (error) {
@@ -286,6 +299,7 @@ app.patch('/toners/:id', async (req, res) => {
       tecnico = await Tecnico.findOne({ nombre: updateData.tecnicoAsignado });
       if (tecnico) {
         updateData.tecnicoId = tecnico.tecnicoId;
+         updateData.tecnicoFoto = tecnico.fotoUrl; // ✅ esta línea nueva
       } else {
         console.warn(`⚠️ Técnico no encontrado: ${updateData.tecnicoAsignado}`);
       }
