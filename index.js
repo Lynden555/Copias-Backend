@@ -212,6 +212,8 @@ const storage = multer.diskStorage({
   },
 });
 const upload = multer({ storage });
+const memoryStorage = multer.memoryStorage();
+const uploadMemory = multer({ storage: memoryStorage });
 
 
 app.post('/tickets', upload.array('fotos'), async (req, res) => {
@@ -361,15 +363,16 @@ app.delete('/toners/:id', async (req, res) => {
 
 app.get('/tickets', async (req, res) => {
   try {
+    const { empresaId, ciudad } = req.query;
     const clienteNombre = req.headers['cliente-nombre'];
-    let tickets;
 
-    if (clienteNombre) {
-      tickets = await Ticket.find({ clienteNombre });
-    } else {
-      tickets = await Ticket.find();
-    }
+    const query = {};
 
+    if (empresaId) query.empresaId = empresaId;
+    if (ciudad) query.ciudad = ciudad;
+    if (clienteNombre) query.clienteNombre = clienteNombre;
+
+    const tickets = await Ticket.find(query);
     res.json(tickets);
   } catch (error) {
     console.error('Error al obtener tickets:', error);
@@ -380,8 +383,14 @@ app.get('/tickets', async (req, res) => {
 
 app.get('/toners', async (req, res) => {
   try {
+    const { empresaId, ciudad } = req.query;
     const clienteId = req.headers['cliente-id'];
-    const query = clienteId ? { clienteId } : {};
+
+    const query = {};
+
+    if (clienteId) query.clienteId = clienteId;
+    if (empresaId) query.empresaId = empresaId;
+    if (ciudad) query.ciudad = ciudad;
 
     const toners = await Toner.find(query);
     res.json(toners);
@@ -479,7 +488,13 @@ app.delete('/tickets/:id', async (req, res) => {
 
 app.get('/tecnicos', async (req, res) => {
   try {
-    const tecnicos = await Tecnico.find();
+    const { empresaId, ciudad } = req.query;
+
+    const query = {};
+    if (empresaId) query.empresaId = empresaId;
+    if (ciudad) query.ciudad = ciudad;
+
+    const tecnicos = await Tecnico.find(query);
     res.json(tecnicos);
   } catch (error) {
     console.error('Error al obtener técnicos:', error);
@@ -488,9 +503,18 @@ app.get('/tecnicos', async (req, res) => {
 });
 
 // ✅ NUEVA RUTA PARA AGREGAR TÉCNICOS
-app.post('/tecnicos', async (req, res) => {
+app.post('/tecnicos', uploadMemory.single('foto'), async (req, res) =>{
   try {
-   const { nombre, fotoUrl, tecnicoId, ciudad, empresaId} = req.body;
+    const { nombre, tecnicoId, ciudad, empresaId } = req.body;
+    let fotoUrl = '';
+
+    if (req.file) {
+      const fileBase64 = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+      const uploadResult = await cloudinary.uploader.upload(fileBase64, {
+        folder: 'tecnicos',
+      });
+      fotoUrl = uploadResult.secure_url;
+    }
 
     const nuevoTecnico = new Tecnico({
       nombre,
@@ -504,7 +528,7 @@ app.post('/tecnicos', async (req, res) => {
 
     res.status(201).json({ message: 'Técnico agregado correctamente', tecnico: nuevoTecnico });
   } catch (error) {
-    console.error('Error al agregar técnico:', error);
+    console.error('❌ Error al agregar técnico:', error);
     res.status(500).json({ error: 'Error al agregar técnico' });
   }
 });
