@@ -535,9 +535,9 @@ app.patch('/tecnicos/:id', upload.single('foto'), async (req, res) => {
 });
 
 app.post('/login', async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, ciudad } = req.body;
   try {
-    const usuario = await Usuario.findOne({ email });
+    const usuario = await Usuario.findOne({ email, ciudad });
     if (!usuario) {
       return res.status(401).json({ error: 'Usuario no encontrado' });
     }
