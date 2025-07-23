@@ -152,6 +152,7 @@ const ticketSchema = new mongoose.Schema({
   clienteId: String,
   tecnicoId: String,
   tecnicoFoto: String, // ✅ nuevo campo
+  empresaId: String,
 });
 
 const Ticket = mongoose.model('Ticket', ticketSchema);
@@ -169,6 +170,7 @@ const tonerSchema = new mongoose.Schema({
   clienteId: String,
   tecnicoId: String,
   tecnicoFoto: String, // ✅ nuevo campo
+  empresaId: String,
 });
 const Toner = mongoose.model('Toner', tonerSchema,);
 
@@ -178,6 +180,7 @@ const tecnicoSchema = new mongoose.Schema({
   fotoUrl: String,
   tecnicoId: String,
   ciudad: String,
+  empresaId: String,
   lat: Number,
   lng: Number
 });
@@ -188,6 +191,7 @@ const usuarioSchema = new mongoose.Schema({
   email: String,
   password: String,
   activo: Boolean,
+  empresaId: String,
 });
 const Usuario = mongoose.model('Usuario', usuarioSchema);
 
@@ -212,7 +216,7 @@ const upload = multer({ storage });
 
 app.post('/tickets', upload.array('fotos'), async (req, res) => {
   try {
-    const { clienteNombre, empresa, area, telefono, impresora, descripcionFalla, clienteId, ciudad } = req.body;
+    const { clienteNombre, empresa, area, telefono, impresora, descripcionFalla, clienteId, ciudad, empresaId } = req.body;
     const fotos = [];
 
     if (req.files && req.files.length > 0) {
@@ -238,7 +242,8 @@ app.post('/tickets', upload.array('fotos'), async (req, res) => {
       fotos,
       latitud,
       longitud,
-      ciudad
+      ciudad,
+      empresaId,
     });
 
     await nuevoTicket.save();
@@ -258,7 +263,7 @@ app.post('/tickets', upload.array('fotos'), async (req, res) => {
 
 app.post('/toner', upload.none(), async (req, res) => {
   try {
-    const { clienteNombre, empresa, area, telefono, impresora, clienteId, ciudad } = req.body;
+    const { clienteNombre, empresa, area, telefono, impresora, clienteId, ciudad, empresaId } = req.body;
 
     const latitud = req.body.latitud;
     const longitud = req.body.longitud;
@@ -271,6 +276,7 @@ app.post('/toner', upload.none(), async (req, res) => {
       impresora,
       clienteId,
       ciudad,
+      empresaId,
       latitud,
       longitud
     });
@@ -484,13 +490,14 @@ app.get('/tecnicos', async (req, res) => {
 // ✅ NUEVA RUTA PARA AGREGAR TÉCNICOS
 app.post('/tecnicos', async (req, res) => {
   try {
-   const { nombre, fotoUrl, tecnicoId, ciudad } = req.body;
+   const { nombre, fotoUrl, tecnicoId, ciudad, empresaId} = req.body;
 
     const nuevoTecnico = new Tecnico({
       nombre,
       fotoUrl,
       tecnicoId,
-      ciudad
+      ciudad,
+      empresaId
     });
 
     await nuevoTecnico.save();
@@ -537,9 +544,9 @@ app.patch('/tecnicos/:id', upload.single('foto'), async (req, res) => {
 });
 
 app.post('/login', async (req, res) => {
-  const { email, password, ciudad } = req.body;
+  const { email, password, ciudad, empresaId } = req.body;
   try {
-    const usuario = await Usuario.findOne({ email, ciudad });
+    const usuario = await Usuario.findOne({ email, ciudad, empresaId });
     if (!usuario) {
       return res.status(401).json({ error: 'Usuario no encontrado' });
     }
