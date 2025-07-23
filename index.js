@@ -177,6 +177,7 @@ const tecnicoSchema = new mongoose.Schema({
   nombre: String,
   fotoUrl: String,
   tecnicoId: String,
+  ciudad: String,
   lat: Number,
   lng: Number
 });
@@ -483,12 +484,13 @@ app.get('/tecnicos', async (req, res) => {
 // ✅ NUEVA RUTA PARA AGREGAR TÉCNICOS
 app.post('/tecnicos', async (req, res) => {
   try {
-   const { nombre, fotoUrl, tecnicoId } = req.body;
+   const { nombre, fotoUrl, tecnicoId, ciudad } = req.body;
 
     const nuevoTecnico = new Tecnico({
       nombre,
       fotoUrl,
-      tecnicoId
+      tecnicoId,
+      ciudad
     });
 
     await nuevoTecnico.save();
