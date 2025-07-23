@@ -146,6 +146,7 @@ const ticketSchema = new mongoose.Schema({
   estado: { type: String, default: 'Pendiente' },
   tecnicoAsignado: { type: String, default: null },
   fechaCreacion: { type: Date, default: Date.now },
+  ciudad: String,
   latitud: Number,
   longitud: Number,
   clienteId: String,
@@ -164,6 +165,7 @@ const tonerSchema = new mongoose.Schema({
   estado: { type: String, default: 'Pendiente' },
   tecnicoAsignado: { type: String, default: null },
   fechaCreacion: { type: Date, default: Date.now },
+  ciudad: String,
   clienteId: String,
   tecnicoId: String,
   tecnicoFoto: String, // ✅ nuevo campo
@@ -209,8 +211,7 @@ const upload = multer({ storage });
 
 app.post('/tickets', upload.array('fotos'), async (req, res) => {
   try {
-    const { clienteNombre, empresa, area, telefono, impresora, descripcionFalla, clienteId } = req.body;
-    
+    const { clienteNombre, empresa, area, telefono, impresora, descripcionFalla, clienteId, ciudad } = req.body;
     const fotos = [];
 
     if (req.files && req.files.length > 0) {
@@ -235,7 +236,8 @@ app.post('/tickets', upload.array('fotos'), async (req, res) => {
       clienteId,
       fotos,
       latitud,
-      longitud
+      longitud,
+      ciudad
     });
 
     await nuevoTicket.save();
@@ -255,7 +257,7 @@ app.post('/tickets', upload.array('fotos'), async (req, res) => {
 
 app.post('/toner', upload.none(), async (req, res) => {
   try {
-    const { clienteNombre, empresa, area, telefono, impresora, clienteId } = req.body;
+    const { clienteNombre, empresa, area, telefono, impresora, clienteId, ciudad } = req.body;
 
     const latitud = req.body.latitud;
     const longitud = req.body.longitud;
@@ -267,6 +269,7 @@ app.post('/toner', upload.none(), async (req, res) => {
       telefono,
       impresora,
       clienteId,
+      ciudad,
       latitud,
       longitud
     });
