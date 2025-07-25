@@ -143,6 +143,7 @@ const ticketSchema = new mongoose.Schema({
   impresora: String,
   descripcionFalla: String,
   fotos: [String],
+  fotosTecnico: {type: [String],default: [],},
   estado: { type: String, default: 'Pendiente' },
   tecnicoAsignado: { type: String, default: null },
   fechaCreacion: { type: Date, default: Date.now },
@@ -667,7 +668,6 @@ app.get('/tickets-tecnico', async (req, res) => {
 });
 
 
-
 app.post('/tickets/:id/finalizar', uploadMemory.array('fotosTecnico'), async (req, res) => {
   try {
     const ticket = await Ticket.findById(req.params.id);
@@ -686,10 +686,10 @@ app.post('/tickets/:id/finalizar', uploadMemory.array('fotosTecnico'), async (re
       }
     }
 
-    // ✅ Aquí puedes decidir si agregas un campo especial o usas el mismo de cliente:
-    ticket.fotos.push(...nuevasFotos);
-    ticket.estado = 'Terminado';
+    // 🛠️ Guardar comentario y fotos en campos separados
+    ticket.fotosTecnico.push(...nuevasFotos);
     ticket.comentarioTecnico = comentario;
+    ticket.estado = 'Terminado';
 
     await ticket.save();
 
