@@ -153,6 +153,7 @@ const ticketSchema = new mongoose.Schema({
   tecnicoId: String,
   tecnicoFoto: String, // ✅ nuevo campo
   empresaId: String,
+  comentarioTecnico: String,
 });
 
 const Ticket = mongoose.model('Ticket', ticketSchema);
@@ -667,18 +668,28 @@ app.get('/tickets-tecnico', async (req, res) => {
 
 
 
-app.post('/tickets/:id/finalizar', upload.array('fotosTecnico'), async (req, res) => {
+app.post('/tickets/:id/finalizar', uploadMemory.array('fotosTecnico'), async (req, res) => {
   try {
     const ticket = await Ticket.findById(req.params.id);
     if (!ticket) return res.status(404).json({ error: 'Ticket no encontrado' });
 
     const comentario = req.body.comentario || '';
-    const nuevasFotos = req.files?.map(file => `https://copias-backend-production.up.railway.app/uploads/${file.filename}`) || [];
+    const nuevasFotos = [];
 
-ticket.estado = 'Terminado';
+    if (req.files && req.files.length > 0) {
+      for (const file of req.files) {
+        const base64 = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+        const uploadResult = await cloudinary.uploader.upload(base64, {
+          folder: 'fotos_tecnico',
+        });
+        nuevasFotos.push(uploadResult.secure_url);
+      }
+    }
 
+    // ✅ Aquí puedes decidir si agregas un campo especial o usas el mismo de cliente:
     ticket.fotos.push(...nuevasFotos);
-    // ticket.comentarioTecnico = comentario; // Si decides guardar comentarios en el modelo
+    ticket.estado = 'Finalizado';
+    ticket.comentarioTecnico = comentario;
 
     await ticket.save();
 
@@ -688,6 +699,8 @@ ticket.estado = 'Terminado';
     res.status(500).json({ error: 'Error al finalizar ticket' });
   }
 });
+
+
 // ✅ Nueva ruta: obtener tóners asignados a un técnico
 app.get('/toners-tecnico', async (req, res) => {
   const licencia = req.headers['tecnico-licencia'];
