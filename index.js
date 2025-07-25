@@ -688,7 +688,7 @@ app.post('/tickets/:id/finalizar', uploadMemory.array('fotosTecnico'), async (re
 
     // ✅ Aquí puedes decidir si agregas un campo especial o usas el mismo de cliente:
     ticket.fotos.push(...nuevasFotos);
-    ticket.estado = 'Finalizado';
+    ticket.estado = 'Terminado';
     ticket.comentarioTecnico = comentario;
 
     await ticket.save();
