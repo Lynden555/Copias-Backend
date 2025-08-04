@@ -469,6 +469,14 @@ if (tecnico) {
       }
     }
 
+    if (updateData.estado === 'Reagendado') {
+      await enviarNotificacionACliente({
+        clienteId: ticket.clienteId,
+        title: '📆 Ticket reagendado',
+        body: `Tu ticket fue reagendado. Pronto nos pondremos en contacto para reprogramar la visita.`,
+      });
+    }
+
     res.json(ticket);
   } catch (error) {
     console.error('Error al actualizar ticket:', error);
