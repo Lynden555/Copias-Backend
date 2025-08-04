@@ -255,7 +255,7 @@ app.post('/tickets', upload.array('fotos'), async (req, res) => {
     await enviarNotificacionACliente({
       clienteId,
       title: '📢 Ticket creado',
-      body: `Gracias por reportar: ${descripcionFalla}`,
+      body: `Gracias por reportar`,
     });
 
     res.json(nuevoTicket);
@@ -341,6 +341,14 @@ app.patch('/toners/:id', async (req, res) => {
       } else {
         console.error('❌ No se pudo enviar notificación al técnico: Objeto técnico no encontrado');
       }
+    }
+
+        if (updateData.estado === 'Reagendado') {
+      await enviarNotificacionACliente({
+        clienteId: ticket.clienteId,
+        title: '📆 Ticket reagendado',
+        body: `Tu ticket fue reagendado. Pronto nos pondremos en contacto para reprogramar la visita.`,
+      });
     }
 
     res.json(toner);
@@ -436,10 +444,10 @@ app.patch('/tickets/:id', async (req, res) => {
     let tecnico = null;
     if (updateData.tecnicoAsignado) {
       tecnico = await Tecnico.findOne({ nombre: updateData.tecnicoAsignado });
-if (tecnico) {
-  updateData.tecnicoId = tecnico.tecnicoId;
-  updateData.tecnicoFoto = tecnico.fotoUrl; // ✅ esta línea nueva
-}     else {
+    if (tecnico) {
+      updateData.tecnicoId = tecnico.tecnicoId;
+      updateData.tecnicoFoto = tecnico.fotoUrl; // ✅ esta línea nueva
+    }     else {
         console.warn(`⚠️ Técnico no encontrado: ${updateData.tecnicoAsignado}`);
       }
     }
