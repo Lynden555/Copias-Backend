@@ -520,6 +520,19 @@ app.get('/tecnicos', async (req, res) => {
   }
 });
 
+app.get('/tecnicos/:id', async (req, res) => {
+  try {
+    const tecnico = await Tecnico.findById(req.params.id);
+    if (!tecnico) {
+      return res.status(404).json({ error: 'Técnico no encontrado' });
+    }
+    res.json(tecnico);
+  } catch (error) {
+    console.error('Error al obtener técnico por ID:', error);
+    res.status(500).json({ error: 'Error al obtener técnico' });
+  }
+});
+
 // ✅ NUEVA RUTA PARA AGREGAR TÉCNICOS
 app.post('/tecnicos', uploadMemory.single('foto'), async (req, res) =>{
   try {
