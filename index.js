@@ -346,8 +346,8 @@ app.patch('/toners/:id', async (req, res) => {
         if (updateData.estado === 'Reagendado') {
       await enviarNotificacionACliente({
         clienteId: ticket.clienteId,
-        title: '📆 Ticket reagendado',
-        body: `Tu ticket fue reagendado. Pronto nos pondremos en contacto para reprogramar la visita.`,
+        title: '📆 Pedido reagendado',
+        body: `Tu Pedido fue reagendado. Pronto nos pondremos en contacto para reprogramar la visita.`,
       });
     }
 
