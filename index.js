@@ -185,11 +185,14 @@ const tecnicoSchema = new mongoose.Schema({
   empresaId: String,
   lat: Number,
   lng: Number,
-
-  calificaciones: {
-    totalEstrellas: { type: Number, default: 0 },
-    cantidadVotos: { type: Number, default: 0 }
-  }
+  calificaciones: [{
+    ticketId: String,
+    estrellas: Number,
+    fecha: { type: Date, default: Date.now }
+  }],
+  totalEstrellas: { type: Number, default: 0 },
+  cantidadCalificaciones: { type: Number, default: 0 },
+  promedioEstrellas: { type: Number, default: 0 }
 });
 
 const Tecnico = mongoose.model('Tecnico', tecnicoSchema);
@@ -615,9 +618,9 @@ app.patch('/tecnicos/:id', upload.single('foto'), async (req, res) => {
 app.patch('/tecnicos/:tecnicoId/calificar', async (req, res) => {
   try {
     const { tecnicoId } = req.params;
-    const { estrellas } = req.body;
+    const { estrellas, ticketId } = req.body;
 
-    if (!estrellas || estrellas < 1 || estrellas > 5) {
+    if (!estrellas || estrellas < 0 || estrellas > 5) {
       return res.status(400).json({ error: 'Número de estrellas inválido' });
     }
 
@@ -627,14 +630,67 @@ app.patch('/tecnicos/:tecnicoId/calificar', async (req, res) => {
       return res.status(404).json({ error: 'Técnico no encontrado' });
     }
 
-    tecnico.calificaciones.totalEstrellas += estrellas;
-    tecnico.calificaciones.cantidadVotos += 1;
+    const calificacionExistente = tecnico.calificaciones.find(c => c.ticketId === ticketId);
+    if (calificacionExistente) {
+      return res.status(400).json({ error: 'Este ticket ya fue calificado' });
+    }
+
+    tecnico.calificaciones.push({
+      ticketId,
+      estrellas
+    });
+
+    tecnico.totalEstrellas += estrellas;
+    tecnico.cantidadCalificaciones += 1;
+    tecnico.promedioEstrellas = tecnico.totalEstrellas / tecnico.cantidadCalificaciones;
 
     await tecnico.save();
 
-    res.json({ mensaje: 'Calificación guardada exitosamente' });
+    await Ticket.findByIdAndUpdate(ticketId, { calificado: true });
+
+    res.json({ 
+      mensaje: 'Calificación guardada exitosamente',
+      promedio: tecnico.promedioEstrellas.toFixed(1)
+    });
   } catch (error) {
     console.error('❌ Error al guardar calificación:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+
+app.get('/calificacion-pendiente/:clienteId', async (req, res) => {
+  try {
+    const { clienteId } = req.params;
+    
+    // Buscar tickets terminados no calificados
+    const ticket = await Ticket.findOne({
+      clienteId,
+      estado: 'Terminado',
+      calificado: { $ne: true }
+    }).sort({ fechaCreacion: -1 }).limit(1);
+
+    if (!ticket) {
+      return res.status(404).json({ 
+        tieneCalificacionPendiente: false,
+        mensaje: 'No hay calificaciones pendientes'
+      });
+    }
+
+    // Obtener datos del técnico
+    const tecnico = await Tecnico.findOne({ tecnicoId: ticket.tecnicoId });
+
+    res.json({
+      tieneCalificacionPendiente: true,
+      ticketId: ticket._id,
+      tecnicoId: ticket.tecnicoId,
+      tecnicoNombre: ticket.tecnicoAsignado,
+      tecnicoFoto: tecnico?.fotoUrl || '',
+      fecha: ticket.fechaCreacion,
+      descripcion: ticket.descripcionFalla
+    });
+  } catch (error) {
+    console.error('❌ Error al buscar calificación pendiente:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
@@ -769,20 +825,20 @@ app.post('/tickets/:id/finalizar', uploadMemory.array('fotosTecnico'), async (re
     try {
       const tokenCliente = await TokenExpo.findOne({ clienteId: ticket.clienteId });
 
-      if (tokenCliente && tokenCliente.expoPushToken) {
-      await enviarNotificacionACliente({
-        clienteId: ticket.clienteId,
-          title: '✅ Finalizó tu Ticket',
-          body: `Califica a tu Técnico ${ticket.tecnicoAsignado}`,
-          data: {
-            tipo: 'cliente',
-            calificar: true,
-            tecnicoId: ticket.tecnicoId,
-            tecnicoNombre: ticket.tecnicoAsignado,
-            tecnicoFoto: ticket.tecnicoFoto || '',
-          }
-        });
-      }
+if (updateData.estado === 'Terminado') {
+  await enviarNotificacionACliente({
+    clienteId: ticket.clienteId,
+    title: '✅ Finalizó tu Ticket',
+    body: `Califica a tu Técnico ${ticket.tecnicoAsignado}`,
+    data: {
+      tipo: 'calificacion',
+      ticketId: ticket._id.toString(),
+      tecnicoId: ticket.tecnicoId,
+      tecnicoNombre: ticket.tecnicoAsignado,
+      tecnicoFoto: ticket.tecnicoFoto || ''
+    }
+  });
+}
     } catch (err) {
       console.error('❌ Error al enviar notificación de calificación:', err);
     }
