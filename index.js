@@ -184,7 +184,12 @@ const tecnicoSchema = new mongoose.Schema({
   ciudad: String,
   empresaId: String,
   lat: Number,
-  lng: Number
+  lng: Number,
+
+  calificaciones: {
+    totalEstrellas: { type: Number, default: 0 },
+    cantidadVotos: { type: Number, default: 0 }
+  }
 });
 
 const Tecnico = mongoose.model('Tecnico', tecnicoSchema);
@@ -485,6 +490,33 @@ app.patch('/tickets/:id', async (req, res) => {
       });
     }
 
+        // ✅ Notificación cuando el técnico marca como Terminado
+    if (
+      updateData.estado === 'Terminado' &&
+      ticketAnterior.estado !== 'Terminado' &&
+      ticket.clienteId &&
+      ticket.tecnicoAsignado &&
+      ticket.tecnicoId
+    ) {
+      try {
+        const tokenCliente = await TokenExpo.findOne({ clienteId: ticket.clienteId });
+
+        if (tokenCliente && tokenCliente.expoPushToken) {
+          await enviarNotificacionExpo({
+            to: tokenCliente.expoPushToken,
+            title: '✅ Finalizó tu Ticket',
+            body: `Califica a tu Técnico ${ticket.tecnicoAsignado}`,
+            data: {
+              tipo: 'calificacion',
+              tecnicoId: ticket.tecnicoId
+            }
+          });
+        }
+      } catch (err) {
+        console.error('❌ Error al enviar notificación de calificación:', err);
+      }
+    }
+
     res.json(ticket);
   } catch (error) {
     console.error('Error al actualizar ticket:', error);
@@ -597,6 +629,36 @@ app.patch('/tecnicos/:id', upload.single('foto'), async (req, res) => {
     res.status(500).json({ error: 'Error al actualizar técnico' });
   }
 });
+
+
+app.patch('/tecnicos/:tecnicoId/calificar', async (req, res) => {
+  try {
+    const { tecnicoId } = req.params;
+    const { estrellas } = req.body;
+
+    if (!estrellas || estrellas < 1 || estrellas > 5) {
+      return res.status(400).json({ error: 'Número de estrellas inválido' });
+    }
+
+    const tecnico = await Tecnico.findOne({ tecnicoId });
+
+    if (!tecnico) {
+      return res.status(404).json({ error: 'Técnico no encontrado' });
+    }
+
+    tecnico.calificaciones.totalEstrellas += estrellas;
+    tecnico.calificaciones.cantidadVotos += 1;
+
+    await tecnico.save();
+
+    res.json({ mensaje: 'Calificación guardada exitosamente' });
+  } catch (error) {
+    console.error('❌ Error al guardar calificación:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+
 
 app.post('/login', async (req, res) => {
   const { email, password, ciudad, empresaId } = req.body;
