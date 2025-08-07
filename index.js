@@ -490,6 +490,14 @@ app.patch('/tickets/:id', async (req, res) => {
       });
     }
 
+        if (updateData.estado === 'Terminado') {
+      await enviarNotificacionACliente({
+        clienteId: ticket.clienteId,
+        title: '✅ Finalizó tu Ticket',
+        body: `Califica a tu Técnico ${ticket.tecnicoAsignado}`,
+      });
+    }
+
     res.json(ticket);
   } catch (error) {
     console.error('Error al actualizar ticket:', error);
