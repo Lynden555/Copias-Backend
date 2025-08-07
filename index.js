@@ -490,33 +490,20 @@ app.patch('/tickets/:id', async (req, res) => {
       });
     }
 
-        // ✅ Notificación cuando el técnico marca como Terminado
-    if (
-      updateData.estado === 'Terminado' &&
-      ticketAnterior.estado !== 'Terminado' &&
-      ticket.clienteId &&
-      ticket.tecnicoAsignado &&
-      ticket.tecnicoId
-    ) {
-      try {
-        const tokenCliente = await TokenExpo.findOne({ clienteId: ticket.clienteId });
-
-        if (tokenCliente && tokenCliente.expoPushToken) {
-          await enviarNotificacionExpo({
-            to: tokenCliente.expoPushToken,
-            title: '✅ Finalizó tu Ticket',
-            body: `Califica a tu Técnico ${ticket.tecnicoAsignado}`,
-            data: {
-              tipo: 'calificacion',
-              tecnicoId: ticket.tecnicoId
-            }
-          });
-        }
-      } catch (err) {
-        console.error('❌ Error al enviar notificación de calificación:', err);
-      }
+if (updateData.estado === 'Terminado') {
+  await enviarNotificacionACliente({
+    clienteId: ticket.clienteId,
+    title: '✅ Finalizó tu Ticket',
+    body: `Califica a tu Técnico ${ticket.tecnicoAsignado}`,
+    data: {
+      tipo: 'cliente',
+      calificar: true,
+      tecnicoId: ticket.tecnicoId,
+      tecnicoNombre: ticket.tecnicoAsignado,
+      tecnicoFoto: ticket.tecnicoFoto,
     }
-
+  });
+}
     res.json(ticket);
   } catch (error) {
     console.error('Error al actualizar ticket:', error);
