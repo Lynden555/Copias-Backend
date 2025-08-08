@@ -824,7 +824,7 @@ app.post('/tickets/:id/finalizar', uploadMemory.array('fotosTecnico'), async (re
 
     // Guardar comentario y estado
     ticket.comentarioTecnico = comentario;
-    ticket.estado = 'Finalizado';             // <— usa 'Finalizado' para ser consistente con tu front
+    ticket.estado = 'Terminado';             // <— usa 'Finalizado' para ser consistente con tu front
     ticket.fechaFinalizacion = new Date();    // opcional, útil para panel
 
     await ticket.save();
