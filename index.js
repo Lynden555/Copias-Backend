@@ -826,26 +826,12 @@ app.post('/tickets/:id/finalizar', uploadMemory.array('fotosTecnico'), async (re
 
     await ticket.save();
 
-    // ✅ Enviar notificación de calificación al cliente
-    try {
-
-if (updateData.estado === 'Terminado') {
-  await enviarNotificacionACliente({
-    clienteId: ticket.clienteId,
-    title: '✅ Finalizó tu Ticket',
-    body: `Califica a tu Técnico ${ticket.tecnicoAsignado}`,
-    data: {
-      tipo: 'calificacion',
-      ticketId: ticket._id.toString(),
-      tecnicoId: ticket.tecnicoId,
-      tecnicoNombre: ticket.tecnicoAsignado,
-      tecnicoFoto: ticket.tecnicoFoto || ''
-    }
-  });
-}
-
-    } catch (err) {
-      console.error('❌ Error al enviar notificación de calificación:', err);
+    if (updateData.estado === 'Terminado') {
+      await enviarNotificacionACliente({
+        clienteId: ticket.clienteId,
+        title: '✅ Finalizó tu Ticket',
+        body: `Califica a tu Técnico ${ticket.tecnicoAsignado}`,
+      });
     }
 
     res.json(ticket);
