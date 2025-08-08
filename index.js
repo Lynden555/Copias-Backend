@@ -809,29 +809,42 @@ app.post('/tickets/:id/finalizar', uploadMemory.array('fotosTecnico'), async (re
     const comentario = req.body.comentario || '';
     const nuevasFotos = [];
 
+    // Subir fotos a Cloudinary
     if (req.files && req.files.length > 0) {
       for (const file of req.files) {
         const base64 = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
-        const uploadResult = await cloudinary.uploader.upload(base64, {
-          folder: 'fotos_tecnico',
-        });
+        const uploadResult = await cloudinary.uploader.upload(base64, { folder: 'fotos_tecnico' });
         nuevasFotos.push(uploadResult.secure_url);
       }
     }
 
-    // 🛠️ Guardar comentario y fotos en campos separados
+    // Asegurar arrays
+    if (!Array.isArray(ticket.fotosTecnico)) ticket.fotosTecnico = [];
     ticket.fotosTecnico.push(...nuevasFotos);
+
+    // Guardar comentario y estado
     ticket.comentarioTecnico = comentario;
-    ticket.estado = 'Terminado';
+    ticket.estado = 'Finalizado';             // <— usa 'Finalizado' para ser consistente con tu front
+    ticket.fechaFinalizacion = new Date();    // opcional, útil para panel
 
     await ticket.save();
 
-    if (updateData.estado === 'Terminado') {
+    // Enviar notificación de calificación al cliente (no uses variables inexistentes)
+    try {
+      const tecnicoNombre =
+        ticket.tecnicoNombre ||                        // si ya lo guardas directo
+        ticket.nombreTecnico ||                         // otro alias posible
+        (ticket.tecnicoAsignadoNombre) ||               // por si guardas nombre aparte
+        (typeof ticket.tecnicoAsignado === 'string' ? ticket.tecnicoAsignado : 'tu técnico'); // fallback
+
       await enviarNotificacionACliente({
         clienteId: ticket.clienteId,
         title: '✅ Finalizó tu Ticket',
-        body: `Califica a tu Técnico ${ticket.tecnicoAsignado}`,
+        body: `Califica a tu Técnico ${tecnicoNombre}`,
       });
+    } catch (pushErr) {
+      console.warn('Error al enviar notificación de calificación:', pushErr);
+      // no rompas la respuesta al cliente si falla el push
     }
 
     res.json(ticket);
