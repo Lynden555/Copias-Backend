@@ -844,6 +844,14 @@ if (updateData.estado === 'Terminado') {
     }
   });
 }
+
+        if (updateData.estado === 'Terminado') {
+      await enviarNotificacionACliente({
+        clienteId: ticket.clienteId,
+        title: '✅ Finalizó tu Ticket',
+        body: `Califica a tu Técnico ${ticket.tecnicoAsignado}`,
+      });
+    }
     } catch (err) {
       console.error('❌ Error al enviar notificación de calificación:', err);
     }
