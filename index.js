@@ -520,15 +520,20 @@ app.delete('/tickets/:id', async (req, res) => {
   }
 });
 
+
 app.get('/tecnicos', async (req, res) => {
   try {
     const { empresaId, ciudad } = req.query;
-
     const query = {};
+    
     if (empresaId) query.empresaId = empresaId;
     if (ciudad) query.ciudad = ciudad;
 
-    const tecnicos = await Tecnico.find(query);
+  
+    const tecnicos = await Tecnico.find(query)
+      .populate('calificaciones') 
+      .exec();
+
     res.json(tecnicos);
   } catch (error) {
     console.error('Error al obtener técnicos:', error);
