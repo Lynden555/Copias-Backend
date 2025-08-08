@@ -828,7 +828,6 @@ app.post('/tickets/:id/finalizar', uploadMemory.array('fotosTecnico'), async (re
 
     // ✅ Enviar notificación de calificación al cliente
     try {
-      const tokenCliente = await TokenExpo.findOne({ clienteId: ticket.clienteId });
 
 if (updateData.estado === 'Terminado') {
   await enviarNotificacionACliente({
