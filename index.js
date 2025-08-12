@@ -163,6 +163,12 @@ const ticketSchema = new mongoose.Schema(
     fechaFinalizacion: { type: Date, default: null, index: true },
     fechaReagendo: { type: Date, default: null, index: true },
     fechaCancelacion: { type: Date, default: null, index: true },
+    fechaPrimerAsignado: { type: Date, default: null, index: true },
+    tecnicoPrimerAsignadoId: { type: String, default: null, index: true },
+    tecnicoPrimerAsignadoNombre: { type: String, default: null, index: true },
+
+    tecnicoReagendoId: { type: String, default: null, index: true },
+    tecnicoReagendoNombre: { type: String, default: null, index: true },
 
     comentarioTecnico: String,
   },
@@ -190,6 +196,12 @@ const tonerSchema = new mongoose.Schema(
     fechaFinalizacion: { type: Date, default: null, index: true },
     fechaReagendo: { type: Date, default: null, index: true },
     fechaCancelacion: { type: Date, default: null, index: true },
+    fechaPrimerAsignado: { type: Date, default: null, index: true },
+    tecnicoPrimerAsignadoId: { type: String, default: null, index: true },
+    tecnicoPrimerAsignadoNombre: { type: String, default: null, index: true },
+
+    tecnicoReagendoId: { type: String, default: null, index: true },
+    tecnicoReagendoNombre: { type: String, default: null, index: true },
   },
   { timestamps: true }
 );
@@ -349,12 +361,21 @@ app.patch('/toners/:id', async (req, res) => {
     // 👆 FIN DEL NUEVO CÓDIGO
 
     const ahora = new Date();
-    if (updateData.estado === 'Asignado' && !tonerAnterior.fechaAsignacion) {
-      updateData.fechaAsignacion = updateData.fechaAsignacion || ahora;
+
+    if (updateData.estado === 'Asignado' && !tonerAnterior.fechaPrimerAsignado) {
+      updateData.fechaPrimerAsignado = updateData.fechaAsignacion ? new Date(updateData.fechaAsignacion) : ahora;
+      updateData.tecnicoPrimerAsignadoId = tonerAnterior.tecnicoId || (tecnico?.tecnicoId ?? null);
+      updateData.tecnicoPrimerAsignadoNombre = tonerAnterior.tecnicoAsignado || updateData.tecnicoAsignado || null;
     }
-    if (updateData.estado === 'Pendiente') {
-      updateData.fechaAsignacion = null;
+
+    if (updateData.estado === 'Reagendado') {
+      updateData.fechaReagendo = ahora;
+      if (tonerAnterior.tecnicoId || tonerAnterior.tecnicoAsignado) {
+        updateData.tecnicoReagendoId = tonerAnterior.tecnicoId || null;
+        updateData.tecnicoReagendoNombre = tonerAnterior.tecnicoAsignado || null;
+      }
     }
+
     if (updateData.estado === 'Terminado')  updateData.fechaFinalizacion = ahora;
     if (updateData.estado === 'Reagendado') updateData.fechaReagendo     = ahora;
     if (updateData.estado === 'Cancelado')  updateData.fechaCancelacion  = ahora;
@@ -494,12 +515,18 @@ app.patch('/tickets/:id', async (req, res) => {
 
     const ahora = new Date();
 
-    if (updateData.estado === 'Asignado' && !ticketAnterior.fechaAsignacion) {
-      updateData.fechaAsignacion = updateData.fechaAsignacion || ahora;
+    if (updateData.estado === 'Asignado' && !ticketAnterior.fechaPrimerAsignado) {
+      updateData.fechaPrimerAsignado = updateData.fechaAsignacion ? new Date(updateData.fechaAsignacion) : ahora;
+      updateData.tecnicoPrimerAsignadoId = ticketAnterior.tecnicoId || (tecnico?.tecnicoId ?? null);
+      updateData.tecnicoPrimerAsignadoNombre = ticketAnterior.tecnicoAsignado || updateData.tecnicoAsignado || null;
     }
 
-    if (updateData.estado === 'Pendiente') {
-      updateData.fechaAsignacion = null;
+    if (updateData.estado === 'Reagendado') {
+      updateData.fechaReagendo = ahora;
+      if (ticketAnterior.tecnicoId || ticketAnterior.tecnicoAsignado) {
+        updateData.tecnicoReagendoId = ticketAnterior.tecnicoId || null;
+        updateData.tecnicoReagendoNombre = ticketAnterior.tecnicoAsignado || null;
+      }
     }
 
     if (updateData.estado === 'Terminado')  updateData.fechaFinalizacion = ahora;
