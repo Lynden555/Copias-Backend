@@ -135,46 +135,66 @@ mongoose
 
 
 
-const ticketSchema = new mongoose.Schema({
-  clienteNombre: String,
-  empresa: String,
-  area: String,
-  telefono: String,
-  impresora: String,
-  descripcionFalla: String,
-  fotos: [String],
-  fotosTecnico: {type: [String],default: [],},
-  estado: { type: String, default: 'Pendiente' },
-  tecnicoAsignado: { type: String, default: null },
-  fechaCreacion: { type: Date, default: Date.now },
-  ciudad: String,
-  latitud: Number,
-  longitud: Number,
-  clienteId: String,
-  tecnicoId: String,
-  tecnicoFoto: String, // ✅ nuevo campo
-  empresaId: String,
-  comentarioTecnico: String,
-});
+// ✅ Estados válidos en todo el sistema
+const ESTADOS = ['Pendiente', 'Asignado', 'Finalizado', 'Reagendado', 'Cancelado'];
+
+/* ====================== TICKETS ====================== */
+const ticketSchema = new mongoose.Schema(
+  {
+    clienteNombre: String,
+    empresa: String,
+    area: String,
+    telefono: String,
+    impresora: String,
+    descripcionFalla: String,
+    fotos: [String],
+    fotosTecnico: { type: [String], default: [] },
+    estado: { type: String, enum: ESTADOS, default: 'Pendiente', index: true },
+    tecnicoAsignado: { type: String, default: null, index: true },
+    tecnicoId: { type: String, index: true },
+    tecnicoFoto: String,
+    ciudad: { type: String, index: true },
+    empresaId: { type: String, index: true },
+    latitud: Number,
+    longitud: Number,
+    clienteId: { type: String, index: true },
+    fechaCreacion: { type: Date, default: Date.now, index: true }, 
+    fechaAsignacion: { type: Date, default: null, index: true },
+    fechaFinalizacion: { type: Date, default: null, index: true },
+    fechaReagendo: { type: Date, default: null, index: true },
+    fechaCancelacion: { type: Date, default: null, index: true },
+
+    comentarioTecnico: String,
+  },
+  { timestamps: true } 
+);
 
 const Ticket = mongoose.model('Ticket', ticketSchema);
 
-const tonerSchema = new mongoose.Schema({
-  clienteNombre: String,
-  empresa: String,
-  area: String,
-  telefono: String,
-  impresora: String,
-  estado: { type: String, default: 'Pendiente' },
-  tecnicoAsignado: { type: String, default: null },
-  fechaCreacion: { type: Date, default: Date.now },
-  ciudad: String,
-  clienteId: String,
-  tecnicoId: String,
-  tecnicoFoto: String, // ✅ nuevo campo
-  empresaId: String,
-});
-const Toner = mongoose.model('Toner', tonerSchema,);
+const tonerSchema = new mongoose.Schema(
+  {
+    clienteNombre: String,
+    empresa: String,
+    area: String,
+    telefono: String,
+    impresora: String,
+    estado: { type: String, enum: ESTADOS, default: 'Pendiente', index: true },
+    tecnicoAsignado: { type: String, default: null, index: true },
+    tecnicoId: { type: String, index: true },
+    tecnicoFoto: String,
+    ciudad: { type: String, index: true },
+    empresaId: { type: String, index: true },
+    clienteId: { type: String, index: true },
+    fechaCreacion: { type: Date, default: Date.now, index: true },
+    fechaAsignacion: { type: Date, default: null, index: true },
+    fechaFinalizacion: { type: Date, default: null, index: true },
+    fechaReagendo: { type: Date, default: null, index: true },
+    fechaCancelacion: { type: Date, default: null, index: true },
+  },
+  { timestamps: true }
+);
+
+const Toner = mongoose.model('Toner', tonerSchema);
 
 
 const tecnicoSchema = new mongoose.Schema({
@@ -328,6 +348,17 @@ app.patch('/toners/:id', async (req, res) => {
     }
     // 👆 FIN DEL NUEVO CÓDIGO
 
+    const ahora = new Date();
+    if (updateData.estado === 'Asignado' && !tonerAnterior.fechaAsignacion) {
+      updateData.fechaAsignacion = updateData.fechaAsignacion || ahora;
+    }
+    if (updateData.estado === 'Pendiente') {
+      updateData.fechaAsignacion = null;
+    }
+    if (updateData.estado === 'Terminado')  updateData.fechaFinalizacion = ahora;
+    if (updateData.estado === 'Reagendado') updateData.fechaReagendo     = ahora;
+    if (updateData.estado === 'Cancelado')  updateData.fechaCancelacion  = ahora;
+
     const toner = await Toner.findByIdAndUpdate(req.params.id, updateData, { new: true });
 
     if (!toner) return res.status(404).json({ error: 'Tóner no encontrado' });
@@ -353,7 +384,7 @@ app.patch('/toners/:id', async (req, res) => {
 
         if (updateData.estado === 'Reagendado') {
       await enviarNotificacionACliente({
-        clienteId: ticket.clienteId,
+        clienteId: toner.clienteId,
         title: '📆 Pedido reagendado',
         body: `Tu Pedido fue reagendado. Pronto nos pondremos en contacto para reprogramar la visita.`,
       });
@@ -460,6 +491,20 @@ app.patch('/tickets/:id', async (req, res) => {
       }
     }
     // 👆 FIN DEL NUEVO CÓDIGO
+
+    const ahora = new Date();
+
+    if (updateData.estado === 'Asignado' && !ticketAnterior.fechaAsignacion) {
+      updateData.fechaAsignacion = updateData.fechaAsignacion || ahora;
+    }
+
+    if (updateData.estado === 'Pendiente') {
+      updateData.fechaAsignacion = null;
+    }
+
+    if (updateData.estado === 'Terminado')  updateData.fechaFinalizacion = ahora;
+    if (updateData.estado === 'Reagendado') updateData.fechaReagendo     = ahora;
+    if (updateData.estado === 'Cancelado')  updateData.fechaCancelacion  = ahora;
 
     const ticket = await Ticket.findByIdAndUpdate(req.params.id, updateData, { new: true });
 
