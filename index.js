@@ -258,7 +258,11 @@ const memoryStorage = multer.memoryStorage();
 const uploadMemory = multer({ storage: memoryStorage });
 
 
-///////////////////////GENERADOR DE API_KEY AGENTE MONITOREO DE IMPRESORAS ///////////////////
+                      //////////////////////////////////////////////////////////////////////////////////////////////
+                      //////////////////////////////////////////////////////////////////////////////////////////////
+                      ///////////////////////////////....MONITOREO DE IMPRESORAS....////////////////////////////////
+                      //////////////////////////////////////////////////////////////////////////////////////////////
+                      //////////////////////////////////////////////////////////////////////////////////////////////
 
 const empresaSchema = new mongoose.Schema({
   nombre: { type: String, required: true, unique: true },
@@ -268,7 +272,42 @@ const empresaSchema = new mongoose.Schema({
 
 const Empresa = mongoose.model('Empresa', empresaSchema);
 
-// 📌 Función para generar ApiKey aleatoria
+const impresoraSchema = new mongoose.Schema({
+  empresaId: { type: mongoose.Schema.Types.ObjectId, ref: 'Empresa', index: true, required: true },
+  // para alinear con tu drag&drop actual mientras migras a "sucursal/site"
+  ciudad: { type: String, default: null, index: true },
+
+  host: { type: String, required: true },         // IP o hostname
+  serial: { type: String, default: null },
+  sysName: { type: String, default: null },
+  sysDescr: { type: String, default: null },
+  model: { type: String, default: null },
+  printerName: { type: String, default: null },   // nombre amigable si lo tienes
+  createdAt: { type: Date, default: Date.now }
+}, { strict: true });
+
+impresoraSchema.index({ empresaId: 1, serial: 1 }, { unique: true, sparse: true });
+impresoraSchema.index({ empresaId: 1, host: 1 }, { unique: true }); // fallback si no hay serial
+
+const Impresora = mongoose.model('Impresora', impresoraSchema);
+
+const impresoraLatestSchema = new mongoose.Schema({
+  printerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Impresora', unique: true },
+  lastPageCount: { type: Number, default: null },
+  lastSupplies: [{
+    name: String,
+    level: Number, // nivel actual
+    max: Number    // capacidad (si la conoces)
+  }],
+  lastSeenAt: { type: Date, default: null },
+  lowToner: { type: Boolean, default: false },
+  online: { type: Boolean, default: true }
+}, { strict: true });
+
+const ImpresoraLatest = mongoose.model('ImpresoraLatest', impresoraLatestSchema);
+
+
+// Función para generar ApiKey aleatoria
 function generarApiKey() {
   return 'emp_' + Math.random().toString(36).substring(2, 12) +
          Math.random().toString(36).substring(2, 12);
@@ -305,7 +344,137 @@ app.post('/api/empresas', async (req, res) => {
     res.status(500).json({ ok: false, error: 'Error interno' });
   }
 });
-/////////////////////////////////////////////////////////////////////////////
+
+// ---------- GET /api/empresas ----------
+app.get('/api/empresas', async (req, res) => {
+  try {
+    const empresas = await Empresa.find({}, { _id: 1, nombre: 1 }).sort({ createdAt: -1 }).lean();
+    res.json({ ok: true, data: empresas });
+  } catch (err) {
+    console.error('❌ GET /api/empresas:', err);
+    res.status(500).json({ ok: false, error: 'Error listando empresas' });
+  }
+});
+
+// ---------- GET /api/empresas/:empresaId/impresoras ----------
+// Soporta filtro opcional por ?ciudad=... si lo mandas luego desde el front.
+app.get('/api/empresas/:empresaId/impresoras', async (req, res) => {
+  try {
+    const { empresaId } = req.params;
+    const { ciudad } = req.query;
+
+    const q = { empresaId };
+    if (ciudad) q.ciudad = ciudad;
+
+    const impresoras = await Impresora.find(q).lean();
+    const ids = impresoras.map(i => i._id);
+    const latest = await ImpresoraLatest.find({ printerId: { $in: ids } }).lean();
+    const mapLatest = new Map(latest.map(l => [String(l.printerId), l]));
+
+    const data = impresoras.map(i => ({
+      ...i,
+      latest: mapLatest.get(String(i._id)) || null
+    }));
+
+    res.json({ ok: true, data });
+  } catch (err) {
+    console.error('❌ GET /api/empresas/:empresaId/impresoras:', err);
+    res.status(500).json({ ok: false, error: 'Error listando impresoras' });
+  }
+});
+
+// ---------- POST /api/metrics/impresoras ----------
+// Ingesta desde el Agente. Usa Authorization: Bearer <apiKey de Empresa>
+app.post('/api/metrics/impresoras', async (req, res) => {
+  try {
+    // 1) Autenticación por ApiKey (Empresa)
+    const auth = req.headers['authorization'] || '';
+    const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
+    if (!token) return res.status(401).json({ ok: false, error: 'Falta ApiKey' });
+
+    const empresa = await Empresa.findOne({ apiKey: token }).lean();
+    if (!empresa) return res.status(403).json({ ok: false, error: 'ApiKey inválida' });
+
+    // 2) Payload esperado
+    // host: string (IP/hostname)
+    // pageCount: number (opcional)
+    // supplies: [{name, level, max}]
+    // sysName, sysDescr, printerName, serial, model (opcionales)
+    // ciudad (opcional, para alinear con tu filtro actual)
+    const {
+      host,
+      pageCount,
+      supplies = [],
+      sysName = null,
+      sysDescr = null,
+      printerName = null,
+      serial = null,
+      model = null,
+      ciudad = null,
+      ts = new Date().toISOString(),
+      agentVersion = '1.0.0'
+    } = req.body || {};
+
+    if (!host) {
+      return res.status(400).json({ ok: false, error: 'host requerido' });
+    }
+
+    // 3) Upsert de Impresora
+    const clave = serial ? { empresaId: empresa._id, serial } : { empresaId: empresa._id, host };
+    const setBase = {
+      empresaId: empresa._id,
+      ciudad: ciudad || null,
+      host,
+      serial,
+      sysName,
+      sysDescr,
+      printerName,
+      model
+    };
+
+    const impresora = await Impresora.findOneAndUpdate(
+      clave,
+      { $set: setBase, $setOnInsert: { createdAt: new Date() } },
+      { new: true, upsert: true }
+    );
+
+    // 4) Actualiza Latest
+    const lastSeenAt = new Date(ts);
+    const lowToner = Array.isArray(supplies) && supplies.some(s => {
+      const lvl = Number(s?.level);
+      const max = Number(s?.max);
+      if (isFinite(lvl) && isFinite(max) && max > 0) {
+        return (lvl / max) * 100 <= 20;
+      }
+      // si no hay max, considera bajo si level <= 20 (porcentaje directo)
+      return isFinite(lvl) && lvl <= 20;
+    });
+
+    await ImpresoraLatest.findOneAndUpdate(
+      { printerId: impresora._id },
+      {
+        $set: {
+          lastPageCount: isFinite(Number(pageCount)) ? Number(pageCount) : null,
+          lastSupplies: Array.isArray(supplies) ? supplies : [],
+          lastSeenAt,
+          lowToner,
+          online: true
+        }
+      },
+      { new: true, upsert: true }
+    );
+
+    res.json({ ok: true, printerId: impresora._id, empresaId: empresa._id, agentVersion });
+  } catch (err) {
+    console.error('❌ POST /api/metrics/impresoras:', err);
+    res.status(500).json({ ok: false, error: 'Error ingesta impresoras' });
+  }
+});
+                      /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                      /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                      /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                      /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                      /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
 
