@@ -471,6 +471,20 @@ app.post('/api/metrics/impresoras', async (req, res) => {
     res.status(500).json({ ok: false, error: 'Error ingesta impresoras' });
   }
 });
+
+app.delete('/api/empresas/:id', async (req, res) => {
+  try {
+    const empresa = await Empresa.findByIdAndDelete(req.params.id);
+    if (!empresa) return res.status(404).json({ ok: false, error: 'Empresa no encontrada' });
+
+    // TODO opcional: borrar impresoras, latest, etc., pertenecientes a esa empresa
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('❌ DELETE /api/empresas/:id', err);
+    res.status(500).json({ ok: false, error: 'Error eliminando empresa' });
+  }
+});
+
                       /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
                       /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
                       /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
