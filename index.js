@@ -258,6 +258,58 @@ const memoryStorage = multer.memoryStorage();
 const uploadMemory = multer({ storage: memoryStorage });
 
 
+///////////////////////GENERADOR DE API_KEY AGENTE MONITOREO DE IMPRESORAS ///////////////////
+
+const empresaSchema = new mongoose.Schema({
+  nombre: { type: String, required: true, unique: true },
+  apiKey: { type: String, required: true, unique: true },
+  createdAt: { type: Date, default: Date.now }
+});
+
+const Empresa = mongoose.model('Empresa', empresaSchema);
+
+// 📌 Función para generar ApiKey aleatoria
+function generarApiKey() {
+  return 'emp_' + Math.random().toString(36).substring(2, 12) +
+         Math.random().toString(36).substring(2, 12);
+}
+
+// 📌 Endpoint para crear empresa y devolver ApiKey
+app.post('/api/empresas', async (req, res) => {
+  try {
+    const { nombre } = req.body;
+    if (!nombre || nombre.trim().length < 3) {
+      return res.status(400).json({ ok: false, error: 'Nombre inválido' });
+    }
+
+    // Verificar que no exista ya
+    const existe = await Empresa.findOne({ nombre: nombre.trim() });
+    if (existe) {
+      return res.status(400).json({ ok: false, error: 'La empresa ya existe' });
+    }
+
+    const apiKey = generarApiKey();
+    const nueva = new Empresa({
+      nombre: nombre.trim(),
+      apiKey
+    });
+    await nueva.save();
+
+    res.json({
+      ok: true,
+      empresaId: nueva._id,
+      apiKey: nueva.apiKey
+    });
+  } catch (err) {
+    console.error('❌ Error creando empresa:', err);
+    res.status(500).json({ ok: false, error: 'Error interno' });
+  }
+});
+/////////////////////////////////////////////////////////////////////////////
+
+
+
+
 app.post('/tickets', upload.array('fotos'), async (req, res) => {
   try {
     const { clienteNombre, empresa, area, telefono, impresora, descripcionFalla, clienteId, ciudad, empresaId } = req.body;
