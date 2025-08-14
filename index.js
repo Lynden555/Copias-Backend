@@ -266,9 +266,11 @@ const uploadMemory = multer({ storage: memoryStorage });
                       //////////////////////////////////////////////////////////////////////////////////////////////
 
 const empresaSchema = new mongoose.Schema({
-  nombre: { type: String, required: true, unique: true },
-  apiKey: { type: String, required: true, unique: true },
-  createdAt: { type: Date, default: Date.now }
+  nombre:   { type: String, required: true },
+  apiKey:   { type: String, required: true, unique: true },
+  empresaId:{ type: String, required: true },  
+  ciudad:   { type: String, required: true },   
+  createdAt:{ type: Date, default: Date.now }
 });
 
 const Empresa = mongoose.model('Empresa', empresaSchema);
@@ -317,9 +319,12 @@ function generarApiKey() {
 // 📌 Endpoint para crear empresa y devolver ApiKey
 app.post('/api/empresas', async (req, res) => {
   try {
-    const { nombre } = req.body;
+    const { nombre, empresaId, ciudad } = req.body;
     if (!nombre || nombre.trim().length < 3) {
       return res.status(400).json({ ok: false, error: 'Nombre inválido' });
+    }
+        if (!empresaId || !ciudad) {
+      return res.status(400).json({ ok: false, error: 'empresaId y ciudad son obligatorios' });
     }
 
     // Verificar que no exista ya
@@ -331,7 +336,9 @@ app.post('/api/empresas', async (req, res) => {
     const apiKey = generarApiKey();
     const nueva = new Empresa({
       nombre: nombre.trim(),
-      apiKey
+      apiKey,
+      empresaId,
+      ciudad
     });
     await nueva.save();
 
@@ -349,6 +356,11 @@ app.post('/api/empresas', async (req, res) => {
 // ---------- GET /api/empresas ----------
 app.get('/api/empresas', async (req, res) => {
   try {
+const { empresaId, ciudad } = req.query;
+    const q = {};
+    if (empresaId) q.empresaId = empresaId;
+    if (ciudad)    q.ciudad    = ciudad;
+
     const empresas = await Empresa.find({}, { _id: 1, nombre: 1 }).sort({ createdAt: -1 }).lean();
     res.json({ ok: true, data: empresas });
   } catch (err) {
