@@ -272,6 +272,7 @@ const empresaSchema = new mongoose.Schema({
   ciudad:   { type: String, required: true },   
   createdAt:{ type: Date, default: Date.now }
 });
+empresaSchema.index({ empresaId: 1, ciudad: 1, createdAt: -1 });
 
 const Empresa = mongoose.model('Empresa', empresaSchema);
 
@@ -328,9 +329,14 @@ app.post('/api/empresas', async (req, res) => {
     }
 
     // Verificar que no exista ya
-    const existe = await Empresa.findOne({ nombre: nombre.trim() });
+// dentro de POST /api/empresas
+    const existe = await Empresa.findOne({
+      nombre: nombre.trim(),
+      empresaId,         // 👈 incluye scope
+      ciudad
+    });
     if (existe) {
-      return res.status(400).json({ ok: false, error: 'La empresa ya existe' });
+      return res.status(400).json({ ok: false, error: 'La empresa ya existe en este scope' });
     }
 
     const apiKey = generarApiKey();
@@ -353,15 +359,21 @@ app.post('/api/empresas', async (req, res) => {
   }
 });
 
-// ---------- GET /api/empresas ----------
 app.get('/api/empresas', async (req, res) => {
   try {
-const { empresaId, ciudad } = req.query;
-    const q = {};
-    if (empresaId) q.empresaId = empresaId;
-    if (ciudad)    q.ciudad    = ciudad;
+    const { empresaId, ciudad } = req.query;
 
-    const empresas = await Empresa.find({}, { _id: 1, nombre: 1 }).sort({ createdAt: -1 }).lean();
+    // 🧠 filtrar por el scope del login (ambos son strings en tu schema)
+    const q = {};
+    if (empresaId) q.empresaId = String(empresaId);
+    if (ciudad)    q.ciudad    = String(ciudad);
+
+    // 👇 usa q (antes estabas usando {})
+    const empresas = await Empresa
+      .find(q, { _id: 1, nombre: 1 })   // si quieres, añade ciudad:1 para debug
+      .sort({ createdAt: -1 })
+      .lean();
+
     res.json({ ok: true, data: empresas });
   } catch (err) {
     console.error('❌ GET /api/empresas:', err);
@@ -369,8 +381,6 @@ const { empresaId, ciudad } = req.query;
   }
 });
 
-// ---------- GET /api/empresas/:empresaId/impresoras ----------
-// Soporta filtro opcional por ?ciudad=... si lo mandas luego desde el front.
 app.get('/api/empresas/:empresaId/impresoras', async (req, res) => {
   try {
     const { empresaId } = req.params;
