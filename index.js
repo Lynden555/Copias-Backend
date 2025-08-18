@@ -442,8 +442,11 @@ app.post('/api/metrics/impresoras', async (req, res) => {
       return res.status(400).json({ ok: false, error: 'host requerido' });
     }
 
-    // 3) Upsert de Impresora
-    const clave = serial ? { empresaId: empresa._id, serial } : { empresaId: empresa._id, host };
+    // 3) Upsert de Impresora (tolerante a cambio de clave)
+    const claveOr = serial
+      ? { $or: [{ serial }, { host }] }
+      : { host };
+
     const setBase = {
       empresaId: empresa._id,
       ciudad: ciudad || null,
@@ -455,9 +458,13 @@ app.post('/api/metrics/impresoras', async (req, res) => {
       model
     };
 
+    // 👇 Busca por (empresaId + serial) O (empresaId + host) y actualiza el MISMO doc
     const impresora = await Impresora.findOneAndUpdate(
-      clave,
-      { $set: setBase, $setOnInsert: { createdAt: new Date() } },
+      { empresaId: empresa._id, ...claveOr },
+      {
+        $set: setBase,
+        $setOnInsert: { createdAt: new Date() }
+      },
       { new: true, upsert: true }
     );
 
