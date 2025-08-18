@@ -461,31 +461,37 @@ app.post('/api/metrics/impresoras', async (req, res) => {
       { new: true, upsert: true }
     );
 
-    // 4) Actualiza Latest
-    const lastSeenAt = new Date(ts);
-    const lowToner = Array.isArray(supplies) && supplies.some(s => {
-      const lvl = Number(s?.level);
-      const max = Number(s?.max);
-      if (isFinite(lvl) && isFinite(max) && max > 0) {
-        return (lvl / max) * 100 <= 20;
-      }
-      // si no hay max, considera bajo si level <= 20 (porcentaje directo)
-      return isFinite(lvl) && lvl <= 20;
-    });
+// 4) Actualiza Latest (marcar online SOLO si la lectura trae datos reales)
+const lastSeenAt = new Date(ts);
 
-    await ImpresoraLatest.findOneAndUpdate(
-      { printerId: impresora._id },
-      {
-        $set: {
-          lastPageCount: isFinite(Number(pageCount)) ? Number(pageCount) : null,
-          lastSupplies: Array.isArray(supplies) ? supplies : [],
-          lastSeenAt,
-          lowToner,
-          online: true
-        }
-      },
-      { new: true, upsert: true }
-    );
+// ¿La lectura SNMP fue válida?
+const snmpOk =
+  (typeof pageCount === 'number' && !Number.isNaN(pageCount)) ||
+  (Array.isArray(supplies) && supplies.length > 0) ||
+  !!sysName || !!sysDescr || !!serial || !!model;
+
+// Si hay supplies, calcula lowToner; si no, será false
+const lowToner = Array.isArray(supplies) && supplies.some(s => {
+  const lvl = Number(s?.level);
+  const max = Number(s?.max);
+  if (isFinite(lvl) && isFinite(max) && max > 0) return (lvl / max) * 100 <= 20;
+  return isFinite(lvl) && lvl <= 20;
+});
+
+// Guarda latest. OJO: online = snmpOk
+await ImpresoraLatest.findOneAndUpdate(
+  { printerId: impresora._id },
+  {
+    $set: {
+      lastPageCount: (typeof pageCount === 'number' && !Number.isNaN(pageCount)) ? Number(pageCount) : null,
+      lastSupplies: Array.isArray(supplies) ? supplies : [],
+      lastSeenAt,
+      lowToner,
+      online: snmpOk,          // 👈 si lectura vacía => offline
+    }
+  },
+  { new: true, upsert: true }
+);
 
     res.json({ ok: true, printerId: impresora._id, empresaId: empresa._id, agentVersion });
   } catch (err) {
