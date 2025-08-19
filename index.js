@@ -317,6 +317,19 @@ function generarApiKey() {
          Math.random().toString(36).substring(2, 12);
 }
 
+// ⏱️ Si la última lectura es más vieja que esto => Offline
+const ONLINE_STALE_MS = Number(process.env.ONLINE_STALE_MS || 2 * 60 * 1000);
+
+// Helper: decide online por lastSeenAt y bandera online del latest
+function computeDerivedOnline(latest, now = Date.now()) {
+  if (!latest || !latest.lastSeenAt) return false;
+  if (latest.online === false) return false; // respetamos apagado explícito
+  const ts = new Date(latest.lastSeenAt).getTime();
+  if (!Number.isFinite(ts)) return false;
+  const age = now - ts;
+  return age <= ONLINE_STALE_MS;
+}
+
 // 📌 Endpoint para crear empresa y devolver ApiKey
 app.post('/api/empresas', async (req, res) => {
   try {
@@ -394,10 +407,28 @@ app.get('/api/empresas/:empresaId/impresoras', async (req, res) => {
     const latest = await ImpresoraLatest.find({ printerId: { $in: ids } }).lean();
     const mapLatest = new Map(latest.map(l => [String(l.printerId), l]));
 
-    const data = impresoras.map(i => ({
-      ...i,
-      latest: mapLatest.get(String(i._id)) || null
-    }));
+    const now = Date.now();
+    const data = impresoras.map(i => {
+      const l = mapLatest.get(String(i._id)) || null;
+
+      // ✅ Estado derivado robusto
+      const derivedOnline = computeDerivedOnline(l, now);
+
+      // opcional: útiles para UI/debug
+      const lastSeenTs = l?.lastSeenAt ? new Date(l.lastSeenAt).getTime() : null;
+      const ageMs = lastSeenTs ? Math.max(0, now - lastSeenTs) : null;
+
+      // también marcamos en el objeto latest para compatibilidad
+      const latestWithDerived = l ? { ...l, derivedOnline, ageMs } : null;
+
+      return {
+        ...i,
+        // Campo plano para que el front lo use directo
+        online: derivedOnline,
+        // Conservamos el subobjeto latest con metadata adicional
+        latest: latestWithDerived
+      };
+    });
 
     res.json({ ok: true, data });
   } catch (err) {
@@ -468,37 +499,37 @@ app.post('/api/metrics/impresoras', async (req, res) => {
       { new: true, upsert: true }
     );
 
-// 4) Actualiza Latest (marcar online SOLO si la lectura trae datos reales)
-const lastSeenAt = new Date(ts);
+      // 4) Actualiza Latest (marcar online SOLO si la lectura trae datos reales)
+      const lastSeenAt = new Date(ts);
 
-// ¿La lectura SNMP fue válida?
-const snmpOk =
-  (typeof pageCount === 'number' && !Number.isNaN(pageCount)) ||
-  (Array.isArray(supplies) && supplies.length > 0) ||
-  !!sysName || !!sysDescr || !!serial || !!model;
+      // ¿La lectura SNMP fue válida?
+      const snmpOk =
+        (typeof pageCount === 'number' && !Number.isNaN(pageCount)) ||
+        (Array.isArray(supplies) && supplies.length > 0) ||
+        !!sysName || !!sysDescr || !!serial || !!model;
 
-// Si hay supplies, calcula lowToner; si no, será false
-const lowToner = Array.isArray(supplies) && supplies.some(s => {
-  const lvl = Number(s?.level);
-  const max = Number(s?.max);
-  if (isFinite(lvl) && isFinite(max) && max > 0) return (lvl / max) * 100 <= 20;
-  return isFinite(lvl) && lvl <= 20;
-});
+      // Si hay supplies, calcula lowToner; si no, será false
+      const lowToner = Array.isArray(supplies) && supplies.some(s => {
+        const lvl = Number(s?.level);
+        const max = Number(s?.max);
+        if (isFinite(lvl) && isFinite(max) && max > 0) return (lvl / max) * 100 <= 20;
+        return isFinite(lvl) && lvl <= 20;
+      });
 
-// Guarda latest. OJO: online = snmpOk
-await ImpresoraLatest.findOneAndUpdate(
-  { printerId: impresora._id },
-  {
-    $set: {
-      lastPageCount: (typeof pageCount === 'number' && !Number.isNaN(pageCount)) ? Number(pageCount) : null,
-      lastSupplies: Array.isArray(supplies) ? supplies : [],
-      lastSeenAt,
-      lowToner,
-      online: snmpOk,          // 👈 si lectura vacía => offline
-    }
-  },
-  { new: true, upsert: true }
-);
+    // Guarda latest. OJO: online = snmpOk
+    await ImpresoraLatest.findOneAndUpdate(
+      { printerId: impresora._id },
+      {
+        $set: {
+          lastPageCount: (typeof pageCount === 'number' && !Number.isNaN(pageCount)) ? Number(pageCount) : null,
+          lastSupplies: Array.isArray(supplies) ? supplies : [],
+          lastSeenAt,
+          lowToner,
+          online: snmpOk,          // 👈 si lectura vacía => offline
+        }
+      },
+      { new: true, upsert: true }
+    );
 
     res.json({ ok: true, printerId: impresora._id, empresaId: empresa._id, agentVersion });
   } catch (err) {
@@ -518,6 +549,14 @@ app.delete('/api/empresas/:id', async (req, res) => {
     console.error('❌ DELETE /api/empresas/:id', err);
     res.status(500).json({ ok: false, error: 'Error eliminando empresa' });
   }
+});
+
+app.get('/api/online-policy', (_req, res) => {
+  res.json({
+    ok: true,
+    ONLINE_STALE_MS,
+    note: 'Impresora se considera offline si lastSeenAt es más viejo que este umbral.'
+  });
 });
 
                       /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
