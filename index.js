@@ -136,7 +136,7 @@ mongoose
 
 
 // ✅ Estados válidos en todo el sistema
-const ESTADOS = ['Pendiente', 'Asignado', 'Finalizado', 'Reagendado', 'Cancelado'];
+const ESTADOS = ['Pendiente', 'Asignado', 'Terminado', 'Reagendado', 'Cancelado'];
 
 /* ====================== TICKETS ====================== */
 const ticketSchema = new mongoose.Schema(
@@ -149,7 +149,7 @@ const ticketSchema = new mongoose.Schema(
     descripcionFalla: String,
     fotos: [String],
     fotosTecnico: { type: [String], default: [] },
-    estado: { type: String, default: 'Pendiente' },
+    estado: { type: String, enum: ESTADOS, default: 'Pendiente', index: true },
     tecnicoAsignado: { type: String, default: null, index: true },
     tecnicoId: { type: String, index: true },
     tecnicoFoto: String,
