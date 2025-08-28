@@ -149,7 +149,7 @@ const ticketSchema = new mongoose.Schema(
     descripcionFalla: String,
     fotos: [String],
     fotosTecnico: { type: [String], default: [] },
-    estado: { type: String, enum: ESTADOS, default: 'Pendiente', index: true },
+    estado: { type: String, default: 'Pendiente' },
     tecnicoAsignado: { type: String, default: null, index: true },
     tecnicoId: { type: String, index: true },
     tecnicoFoto: String,
