@@ -847,7 +847,6 @@ app.patch('/tickets/:id', async (req, res) => {
 
     if (!ticket) return res.status(404).json({ error: 'Ticket no encontrado' });
 
-        res.json(ticket);
 
     // ✅ Notificación cuando se asigna un técnico
     if (!ticketAnterior.tecnicoAsignado && ticket.tecnicoAsignado) {
