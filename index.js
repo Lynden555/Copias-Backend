@@ -149,7 +149,7 @@ const ticketSchema = new mongoose.Schema(
     descripcionFalla: String,
     fotos: [String],
     fotosTecnico: { type: [String], default: [] },
-    estado: { type: String, enum: ESTADOS, default: 'Pendiente', index: true },
+    estado: { type: String, default: 'Pendiente' },
     tecnicoAsignado: { type: String, default: null, index: true },
     tecnicoId: { type: String, index: true },
     tecnicoFoto: String,
@@ -823,11 +823,31 @@ app.patch('/tickets/:id', async (req, res) => {
     }
     // 👆 FIN DEL NUEVO CÓDIGO
 
+    const ahora = new Date();
 
+    if (updateData.estado === 'Asignado' && !ticketAnterior.fechaPrimerAsignado) {
+      updateData.fechaPrimerAsignado = updateData.fechaAsignacion ? new Date(updateData.fechaAsignacion) : ahora;
+      updateData.tecnicoPrimerAsignadoId = ticketAnterior.tecnicoId || (tecnico?.tecnicoId ?? null);
+      updateData.tecnicoPrimerAsignadoNombre = ticketAnterior.tecnicoAsignado || updateData.tecnicoAsignado || null;
+    }
 
-    const ticket = await Ticket.findByIdAndUpdate(req.params.id, updateData, { new: true });
+    if (updateData.estado === 'Reagendado') {
+      updateData.fechaReagendo = ahora;
+      if (ticketAnterior.tecnicoId || ticketAnterior.tecnicoAsignado) {
+        updateData.tecnicoReagendoId = ticketAnterior.tecnicoId || null;
+        updateData.tecnicoReagendoNombre = ticketAnterior.tecnicoAsignado || null;
+      }
+    }
+
+    if (updateData.estado === 'Terminado')  updateData.fechaFinalizacion = ahora;
+    if (updateData.estado === 'Reagendado') updateData.fechaReagendo     = ahora;
+    if (updateData.estado === 'Cancelado')  updateData.fechaCancelacion  = ahora;
+
+    const ticket = await Ticket.findByIdAndUpdate(req.params.id, updateData, { new: true, runValidators: true, });
 
     if (!ticket) return res.status(404).json({ error: 'Ticket no encontrado' });
+
+        res.json(ticket);
 
     // ✅ Notificación cuando se asigna un técnico
     if (!ticketAnterior.tecnicoAsignado && ticket.tecnicoAsignado) {
@@ -856,6 +876,8 @@ app.patch('/tickets/:id', async (req, res) => {
         body: `Tu ticket fue reagendado. Pronto nos pondremos en contacto para reprogramar la visita.`,
       });
     }
+
+      res.json(ticket);
 
         if (updateData.estado === 'Terminado') {
       await enviarNotificacionACliente({
