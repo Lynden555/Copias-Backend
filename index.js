@@ -823,25 +823,7 @@ app.patch('/tickets/:id', async (req, res) => {
     }
     // 👆 FIN DEL NUEVO CÓDIGO
 
-    const ahora = new Date();
 
-    if (updateData.estado === 'Asignado' && !ticketAnterior.fechaPrimerAsignado) {
-      updateData.fechaPrimerAsignado = updateData.fechaAsignacion ? new Date(updateData.fechaAsignacion) : ahora;
-      updateData.tecnicoPrimerAsignadoId = ticketAnterior.tecnicoId || (tecnico?.tecnicoId ?? null);
-      updateData.tecnicoPrimerAsignadoNombre = ticketAnterior.tecnicoAsignado || updateData.tecnicoAsignado || null;
-    }
-
-    if (updateData.estado === 'Reagendado') {
-      updateData.fechaReagendo = ahora;
-      if (ticketAnterior.tecnicoId || ticketAnterior.tecnicoAsignado) {
-        updateData.tecnicoReagendoId = ticketAnterior.tecnicoId || null;
-        updateData.tecnicoReagendoNombre = ticketAnterior.tecnicoAsignado || null;
-      }
-    }
-
-    if (updateData.estado === 'Terminado')  updateData.fechaFinalizacion = ahora;
-    if (updateData.estado === 'Reagendado') updateData.fechaReagendo     = ahora;
-    if (updateData.estado === 'Cancelado')  updateData.fechaCancelacion  = ahora;
 
     const ticket = await Ticket.findByIdAndUpdate(req.params.id, updateData, { new: true });
 
