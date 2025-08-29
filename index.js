@@ -877,7 +877,6 @@ app.patch('/tickets/:id', async (req, res) => {
       });
     }
 
-      res.json(ticket);
 
         if (updateData.estado === 'Terminado') {
       await enviarNotificacionACliente({
