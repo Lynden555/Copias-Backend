@@ -462,6 +462,8 @@ app.post('/api/metrics/impresoras', async (req, res) => {
     const {
       host,
       pageCount,
+      pageCountMono = null,   // 👈 nuevo
+      pageCountColor = null,
       supplies = [],
       sysName = null,
       sysDescr = null,
@@ -526,6 +528,8 @@ app.post('/api/metrics/impresoras', async (req, res) => {
       {
         $set: {
           lastPageCount: (typeof pageCount === 'number' && !Number.isNaN(pageCount)) ? Number(pageCount) : null,
+          lastPageMono:  (typeof pageCountMono === 'number' && !Number.isNaN(pageCountMono)) ? Number(pageCountMono) : null,   // 👈
+          lastPageColor: (typeof pageCountColor === 'number' && !Number.isNaN(pageCountColor)) ? Number(pageCountColor) : null, // 👈
           lastSupplies: Array.isArray(supplies) ? supplies : [],
           lastSeenAt,
           lowToner,
