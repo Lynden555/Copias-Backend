@@ -297,7 +297,11 @@ const Impresora = mongoose.model('Impresora', impresoraSchema);
 
 const impresoraLatestSchema = new mongoose.Schema({
   printerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Impresora', unique: true },
-  lastPageCount: { type: Number, default: null },
+
+  lastPageCount: { type: Number, default: null },   // total general (ya existente)
+  lastPageMono:  { type: Number, default: null },   // NUEVO: total B/N
+  lastPageColor: { type: Number, default: null },   // NUEVO: total Color
+
   lastSupplies: [{
     name: String,
     level: Number, // nivel actual
