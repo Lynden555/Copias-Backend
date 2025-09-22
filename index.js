@@ -1338,6 +1338,128 @@ app.post('/guardar-ubicacion-tecnico', async (req, res) => {
   }
 });
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////APARTADO DE SESIONES REMOTAS///////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// models/RemoteSession.js
+const mongoose = require("mongoose");
+
+const RemoteSessionSchema = new mongoose.Schema(
+  {
+    code: { type: String, required: true, unique: true }, // Código único
+    status: {
+      type: String,
+      enum: ["pending", "connected", "closed"],
+      default: "pending",
+    },
+    tecnicoId: { type: String },  // opcional: ID del técnico
+    clienteId: { type: String },  // opcional: ID del cliente
+  },
+  { timestamps: true } // createdAt, updatedAt
+);
+
+module.exports = mongoose.model("RemoteSession", RemoteSessionSchema);
+
+
+const RemoteSession = require("./models/RemoteSession");
+
+// helper para generar código único estilo AnyDesk
+function generateCode() {
+  const n = Math.floor(Math.random() * 900000000) + 100000000;
+  const s = n.toString();
+  return `${s.slice(0, 3)}-${s.slice(3, 6)}-${s.slice(6, 9)}`;
+}
+
+// Crear sesión (cliente genera código)
+app.post("/remote/create", async (req, res) => {
+  try {
+    let code;
+    let exists = true;
+
+    // Genera un código único
+    while (exists) {
+      code = generateCode();
+      exists = await RemoteSession.findOne({ code });
+    }
+
+    const session = new RemoteSession({ code });
+    await session.save();
+
+    return res.json({ ok: true, code: session.code, status: session.status });
+  } catch (err) {
+    console.error("Error en /remote/create:", err);
+    return res.status(500).json({ ok: false, error: "Error interno" });
+  }
+});
+
+// Conectar sesión (técnico ingresa código)
+app.post("/remote/connect", async (req, res) => {
+  const { code, tecnicoId } = req.body;
+
+  if (!code) return res.status(400).json({ ok: false, error: "Falta código" });
+
+  try {
+    const session = await RemoteSession.findOne({ code });
+
+    if (!session) {
+      return res.status(404).json({ ok: false, error: "Sesión no encontrada" });
+    }
+
+    if (session.status === "closed") {
+      return res.status(400).json({ ok: false, error: "Sesión cerrada" });
+    }
+
+    session.status = "connected";
+    if (tecnicoId) session.tecnicoId = tecnicoId;
+    await session.save();
+
+    return res.json({
+      ok: true,
+      msg: `Sesión ${code} conectada`,
+      session,
+    });
+  } catch (err) {
+    console.error("Error en /remote/connect:", err);
+    return res.status(500).json({ ok: false, error: "Error interno" });
+  }
+});
+
+// Cerrar sesión
+app.post("/remote/close", async (req, res) => {
+  const { code } = req.body;
+  if (!code) return res.status(400).json({ ok: false, error: "Falta código" });
+
+  try {
+    const session = await RemoteSession.findOne({ code });
+    if (!session) return res.status(404).json({ ok: false, error: "Sesión no encontrada" });
+
+    session.status = "closed";
+    await session.save();
+
+    return res.json({ ok: true, msg: `Sesión ${code} cerrada` });
+  } catch (err) {
+    console.error("Error en /remote/close:", err);
+    return res.status(500).json({ ok: false, error: "Error interno" });
+  }
+});
+
+// Listar sesiones activas / historial
+app.get("/remote/sessions", async (req, res) => {
+  try {
+    const { status } = req.query;
+    const filter = status ? { status } : {};
+    const sessions = await RemoteSession.find(filter).sort({ createdAt: -1 });
+    return res.json({ ok: true, sessions });
+  } catch (err) {
+    console.error("Error en /remote/sessions:", err);
+    return res.status(500).json({ ok: false, error: "Error interno" });
+  }
+});
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 const PORT = 3000;
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}`);
