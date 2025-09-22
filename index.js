@@ -1342,23 +1342,6 @@ app.post('/guardar-ubicacion-tecnico', async (req, res) => {
 //////////////////////////////////////////APARTADO DE SESIONES REMOTAS///////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-const RemoteSessionSchema = new mongoose.Schema(
-  {
-    code: { type: String, required: true, unique: true }, // Código único
-    status: {
-      type: String,
-      enum: ["pending", "connected", "closed"],
-      default: "pending",
-    },
-    tecnicoId: { type: String },  // opcional: ID del técnico
-    clienteId: { type: String },  // opcional: ID del cliente
-  },
-  { timestamps: true } // createdAt, updatedAt
-);
-
-module.exports = mongoose.model("RemoteSession", RemoteSessionSchema);
-
-
 const RemoteSession = require("./models/RemoteSession");
 
 // helper para generar código único estilo AnyDesk
