@@ -382,14 +382,12 @@ const CortesMensuales = mongoose.model('CortesMensuales', cortesMensualesSchema)
 async function generarPDFProfesional(corte, impresora) {
   return new Promise((resolve, reject) => {
     try {
-      // Crear documento PDF
       const doc = new PDFDocument({ 
-        margin: 50,
+        margin: 30, // Menos margen para más espacio
         size: 'A4',
         bufferPages: true
       });
 
-      // Crear buffers para el PDF
       const chunks = [];
       doc.on('data', (chunk) => chunks.push(chunk));
       doc.on('end', () => {
@@ -397,65 +395,68 @@ async function generarPDFProfesional(corte, impresora) {
         resolve(pdfBuffer);
       });
 
-      // ========== ENCABEZADO PROFESIONAL ==========
-      doc.rect(0, 0, doc.page.width, 120)
+      // ========== ENCABEZADO COMPACTO ==========
+      doc.rect(0, 0, doc.page.width, 80)
          .fillColor('#1a237e')
          .fill();
 
-      // Logo y título
       doc.fillColor('white')
-         .fontSize(24)
+         .fontSize(20)
          .font('Helvetica-Bold')
-         .text('REPORTE DE CONSUMO', 50, 40, { align: 'center' });
+         .text('REPORTE DE CONSUMO', 30, 25, { align: 'center' });
 
-      doc.fontSize(16)
+      doc.fontSize(12)
          .font('Helvetica')
-         .text('Sistema de Monitoreo de Impresoras', 50, 70, { align: 'center' });
+         .text('Sistema de Monitoreo de Impresoras', 30, 50, { align: 'center' });
 
-      // ========== INFORMACIÓN DE LA EMPRESA ==========
-      doc.y = 130;
+      // ========== INFORMACIÓN COMPACTA ==========
+      doc.y = 100;
       doc.fillColor('#333')
-         .fontSize(12)
-         .text(`Empresa: ${impresora.empresaId?.nombre || 'N/A'}`, 50, doc.y)
-         .text(`Impresora: ${impresora.printerName || impresora.sysName || impresora.host}`, 50, doc.y + 20)
-         .text(`Modelo: ${impresora.model || impresora.sysDescr || 'N/A'}`, 50, doc.y + 40)
-         .text(`Período: ${corte.periodo || 'No especificado'}`, 50, doc.y + 60)
-         .text(`Fecha de generación: ${new Date().toLocaleDateString()}`, 50, doc.y + 80);
+         .fontSize(10)
+         .text(`Empresa: ${impresora.empresaId?.nombre || 'N/A'}`, 30, doc.y)
+         .text(`Impresora: ${impresora.printerName || impresora.sysName || impresora.host}`, 30, doc.y + 15)
+         .text(`Modelo: ${impresora.model || impresora.sysDescr || 'N/A'}`, 30, doc.y + 30)
+         .text(`Período: ${corte.periodo || 'No especificado'}`, 30, doc.y + 45)
+         .text(`Fecha: ${new Date().toLocaleDateString()}`, 30, doc.y + 60);
 
-      // ========== RESUMEN DESTACADO ==========
-      doc.y += 110;
-      doc.rect(50, doc.y, doc.page.width - 100, 80)
+      // ========== RESUMEN DESTACADO COMPACTO ==========
+      doc.y = 180;
+      
+      // Caja de resumen
+      doc.rect(30, doc.y, doc.page.width - 60, 60)
          .fillColor('#e3f2fd')
          .fill()
          .strokeColor('#90caf9')
          .stroke();
 
       doc.fillColor('#1565c0')
-         .fontSize(18)
+         .fontSize(14)
          .font('Helvetica-Bold')
-         .text('📊 RESUMEN DEL MES', 70, doc.y + 20);
+         .text('📊 RESUMEN DEL PERÍODO', 45, doc.y + 10);
 
+      // Total páginas GRANDE
       doc.fillColor('#333')
          .fontSize(24)
          .font('Helvetica-Bold')
-         .text(`${corte.totalPaginasGeneral.toLocaleString()}`, 70, doc.y + 45)
-         .fontSize(12)
-         .text('PÁGINAS TOTALES', 70, doc.y + 75);
+         .text(corte.totalPaginasGeneral.toLocaleString(), 45, doc.y + 35)
+         .fontSize(10)
+         .text('PÁGINAS TOTALES', 45, doc.y + 55);
 
+      // Desglose B/N y Color
       doc.fillColor('#2e7d32')
-         .fontSize(16)
-         .text(`B/N: ${corte.totalPaginasMono.toLocaleString()}`, 200, doc.y + 45)
+         .fontSize(12)
+         .text(`B/N: ${corte.totalPaginasMono.toLocaleString()}`, 180, doc.y + 35)
          .fillColor('#c62828')
-         .text(`Color: ${corte.totalPaginasColor.toLocaleString()}`, 200, doc.y + 65);
+         .text(`Color: ${corte.totalPaginasColor.toLocaleString()}`, 180, doc.y + 50);
 
-      // ========== TABLA DE CONTADORES ==========
-      doc.y += 100;
+      // ========== TABLA COMPACTA ==========
+      doc.y += 80;
       
       const table = {
         headers: [
-          { label: 'Concepto', width: 200 },
-          { label: 'Contador Inicial', width: 100 },
-          { label: 'Contador Final', width: 100 },
+          { label: 'Concepto', width: 150 },
+          { label: 'Inicial', width: 80 },
+          { label: 'Final', width: 80 },
           { label: 'Total Período', width: 100 }
         ],
         rows: [
@@ -465,66 +466,66 @@ async function generarPDFProfesional(corte, impresora) {
         ]
       };
 
-      // Estilos de la tabla
       doc.fillColor('#333');
       doc.table(table, {
-        prepareHeader: () => doc.font('Helvetica-Bold').fontSize(10),
-        prepareRow: (row, i) => doc.font('Helvetica').fontSize(9),
-        padding: 5,
+        prepareHeader: () => doc.font('Helvetica-Bold').fontSize(9),
+        prepareRow: (row, i) => doc.font('Helvetica').fontSize(8),
+        padding: 4,
       });
 
-      // ========== INFORMACIÓN DE TONER ==========
+      // ========== TONER COMPACTO ==========
       if (corte.suppliesFin && corte.suppliesFin.length > 0) {
-        doc.y += 20;
-        doc.fillColor('#333')
-           .fontSize(14)
-           .font('Helvetica-Bold')
-           .text('🖨️ ESTADO DE CONSUMIBLES', 50, doc.y);
-
         doc.y += 10;
-        corte.suppliesFin.forEach((supply, index) => {
-          if (doc.y > doc.page.height - 100) {
-            doc.addPage();
-            doc.y = 50;
-          }
+        doc.fillColor('#333')
+           .fontSize(12)
+           .font('Helvetica-Bold')
+           .text('🖨️ ESTADO DE CONSUMIBLES', 30, doc.y);
+
+        doc.y += 5;
+        
+        // Máximo 4 consumibles para que quepa en una página
+        const maxSupplies = Math.min(corte.suppliesFin.length, 4);
+        
+        for (let i = 0; i < maxSupplies; i++) {
+          const supply = corte.suppliesFin[i];
+          if (doc.y > 650) break; // Evitar que se pase de página
           
           const nivel = supply.level || 0;
           const max = supply.max || 100;
           const porcentaje = Math.round((nivel / max) * 100);
           
-          doc.fontSize(10)
+          doc.fontSize(9)
              .font('Helvetica')
-             .text(`${supply.name || `Consumible ${index + 1}`}:`, 70, doc.y + 5);
+             .text(`${supply.name || `Consumible ${i + 1}`}:`, 45, doc.y + 5);
           
-          // Barra de progreso simple
-          doc.rect(200, doc.y, 200, 15)
+          // Barra de progreso compacta
+          doc.rect(150, doc.y, 200, 12)
              .fillColor('#e0e0e0')
              .fill()
              .strokeColor('#bdbdbd')
              .stroke();
           
           if (porcentaje > 0) {
-            doc.rect(200, doc.y, (200 * porcentaje) / 100, 15)
+            doc.rect(150, doc.y, (200 * porcentaje) / 100, 12)
                .fillColor(porcentaje <= 20 ? '#f44336' : (porcentaje <= 50 ? '#ff9800' : '#4caf50'))
                .fill();
           }
           
           doc.fillColor('#333')
-             .text(`${porcentaje}%`, 410, doc.y + 5);
+             .text(`${porcentaje}%`, 360, doc.y + 5);
           
-          doc.y += 25;
-        });
+          doc.y += 20;
+        }
       }
 
-      // ========== PIE DE PÁGINA ==========
+      // ========== PIE DE PÁGINA COMPACTO ==========
       const pageHeight = doc.page.height;
       doc.fillColor('#666')
-         .fontSize(8)
+         .fontSize(7)
          .font('Helvetica')
-         .text('Reporte generado automáticamente por Sistema de Monitoreo de Impresoras', 
-               50, pageHeight - 30, { align: 'center' });
+         .text('Reporte generado automáticamente - Sistema de Monitoreo de Impresoras', 
+               30, pageHeight - 20, { align: 'center' });
 
-      // Finalizar documento
       doc.end();
 
     } catch (error) {
