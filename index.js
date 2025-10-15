@@ -340,6 +340,8 @@ const cortesMensualesSchema = new mongoose.Schema({
   },
   
   // 📅 Fechas y período
+  contadorFinGeneral: { type: Number, required: true },
+
   fechaCorte: { type: Date, default: Date.now },
   mes: { type: Number, required: true }, // 1-12
   año: { type: Number, required: true }, // 2024
