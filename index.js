@@ -432,7 +432,7 @@ async function generarPDFProfesional(corte, impresora) {
       doc.fillColor('#1565c0')
          .fontSize(14)
          .font('Helvetica-Bold')
-         .text('📊 RESUMEN DEL PERÍODO', 45, doc.y + 10);
+         .text('RESUMEN DEL PERÍODO', 45, doc.y + 10);
 
       // Total páginas GRANDE
       doc.fillColor('#333')
@@ -479,7 +479,7 @@ async function generarPDFProfesional(corte, impresora) {
         doc.fillColor('#333')
            .fontSize(12)
            .font('Helvetica-Bold')
-           .text('🖨️ ESTADO DE CONSUMIBLES', 30, doc.y);
+           .text('ESTADO DE CONSUMIBLES', 30, doc.y);
 
         doc.y += 5;
         
@@ -556,28 +556,32 @@ function computeDerivedOnline(latest, now = Date.now()) {
 
 // 🧮 HELPER PARA CÁLCULOS DE CORTES - PEGAR DESPUÉS DE computeDerivedOnline
 function calcularPeriodoCorte(ultimoCorte, contadoresActuales) {
+  // Si no hay contadores específicos, usar el general
+  const monoActual = contadoresActuales.lastPageMono || 0;
+  const colorActual = contadoresActuales.lastPageColor || 0;
+  const generalActual = contadoresActuales.lastPageCount || 0;
+
   if (!ultimoCorte) {
-    // Primer corte - no hay período anterior
+    // Primer corte
     return {
       contadorInicioMono: 0,
       contadorInicioColor: 0,
-      totalPaginasMono: contadoresActuales.lastPageMono || 0,
-      totalPaginasColor: contadoresActuales.lastPageColor || 0,
-      totalPaginasGeneral: contadoresActuales.lastPageCount || 0,
+      totalPaginasMono: monoActual,
+      totalPaginasColor: colorActual,
+      totalPaginasGeneral: generalActual,
       periodo: 'Desde instalación',
       esPrimerCorte: true
     };
   }
 
   // Cálculo para cortes subsiguientes
-  const contadorInicioMono = ultimoCorte.contadorFinMono;
-  const contadorInicioColor = ultimoCorte.contadorFinColor;
+  const contadorInicioMono = ultimoCorte.contadorFinMono || 0;
+  const contadorInicioColor = ultimoCorte.contadorFinColor || 0;
   
-  const totalPaginasMono = Math.max(0, (contadoresActuales.lastPageMono || 0) - contadorInicioMono);
-  const totalPaginasColor = Math.max(0, (contadoresActuales.lastPageColor || 0) - contadorInicioColor);
-  const totalPaginasGeneral = Math.max(0, (contadoresActuales.lastPageCount || 0) - (contadorInicioMono + contadorInicioColor));
+  const totalPaginasMono = Math.max(0, monoActual - contadorInicioMono);
+  const totalPaginasColor = Math.max(0, colorActual - contadorInicioColor);
+  const totalPaginasGeneral = Math.max(0, generalActual - (contadorInicioMono + contadorInicioColor));
 
-  // Formatear período para el PDF
   const fechaInicio = new Date(ultimoCorte.fechaCorte);
   const fechaFin = new Date();
   const periodo = `${fechaInicio.toLocaleDateString()} - ${fechaFin.toLocaleDateString()}`;
@@ -878,6 +882,19 @@ app.post('/api/impresoras/:id/registrar-corte', async (req, res) => {
       ultimoCorte?.suppliesFin || [], 
       latest.lastSupplies || []
     );
+
+        // 🐛 DEBUG: Ver qué datos estamos recibiendo
+    console.log('🔍 DEBUG CORTE:', {
+      printerId,
+      tieneUltimoCorte: !!ultimoCorte,
+      ultimoCorteId: latest.ultimoCorteId,
+      contadoresActuales: {
+        lastPageMono: latest.lastPageMono,
+        lastPageColor: latest.lastPageColor, 
+        lastPageCount: latest.lastPageCount
+      },
+      calculosResultado: calculos
+    });
 
     // 4. Crear nuevo registro de corte (usando los cálculos automáticos)
     const nuevoCorte = new CortesMensuales({
