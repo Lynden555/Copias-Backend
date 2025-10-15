@@ -1,5 +1,9 @@
 const express = require('express');
 const mongoose = require('mongoose');
+const PDFDocument = require('pdfkit');
+const PDFTable = require('pdfkit-table');
+const fs = require('fs');
+const path = require('path');
 const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
@@ -298,6 +302,12 @@ const Impresora = mongoose.model('Impresora', impresoraSchema);
 const impresoraLatestSchema = new mongoose.Schema({
   printerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Impresora', unique: true },
 
+  ultimoCorteId: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'CortesMensuales', 
+    default: null 
+  },
+
   lastPageCount: { type: Number, default: null },   // total general (ya existente)
   lastPageMono:  { type: Number, default: null },   // NUEVO: total B/N
   lastPageColor: { type: Number, default: null },   // NUEVO: total Color
@@ -312,7 +322,219 @@ const impresoraLatestSchema = new mongoose.Schema({
   online: { type: Boolean, default: true }
 }, { strict: true });
 
+
 const ImpresoraLatest = mongoose.model('ImpresoraLatest', impresoraLatestSchema);
+
+// //SCHEMA PARA CORTES MENSUALES /////
+
+const cortesMensualesSchema = new mongoose.Schema({
+  printerId: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'Impresora', 
+    required: true,
+    index: true 
+  },
+  empresaId: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'Empresa', 
+    required: true,
+    index: true 
+  },
+  
+  // 📅 Fechas y período
+  fechaCorte: { type: Date, default: Date.now },
+  mes: { type: Number, required: true }, // 1-12
+  año: { type: Number, required: true }, // 2024
+  
+  // 🔢 CONTADORES INICIO (del último corte)
+  contadorInicioMono: { type: Number, default: 0 },
+  contadorInicioColor: { type: Number, default: 0 },
+  
+  // 🔢 CONTADORES FIN (actuales al hacer corte)
+  contadorFinMono: { type: Number, required: true },
+  contadorFinColor: { type: Number, required: true },
+  
+  // 📈 TOTALES CALCULADOS
+  totalPaginasMono: { type: Number, required: true },
+  totalPaginasColor: { type: Number, required: true },
+  totalPaginasGeneral: { type: Number, required: true },
+  
+  // 🖨️ ESTADO DE TONER
+  suppliesInicio: [{ name: String, level: Number, max: Number }],
+  suppliesFin: [{ name: String, level: Number, max: Number }],
+  
+  // 📄 PDF GENERADO
+  pdfPath: { type: String, default: null },
+  
+  // 🏷️ METADATOS
+  nombreImpresora: { type: String, default: '' },
+  modeloImpresora: { type: String, default: '' }
+}, { 
+  strict: true,
+  timestamps: true // agrega createdAt y updatedAt automáticamente
+});
+
+// Índices para búsquedas rápidas
+cortesMensualesSchema.index({ printerId: 1, fechaCorte: -1 });
+cortesMensualesSchema.index({ empresaId: 1, mes: 1, año: 1 });
+
+const CortesMensuales = mongoose.model('CortesMensuales', cortesMensualesSchema);
+
+// 🎨 FUNCIÓN PARA GENERAR PDF PROFESIONAL - PEGAR DESPUÉS DE LOS SCHEMAS
+async function generarPDFProfesional(corte, impresora) {
+  return new Promise((resolve, reject) => {
+    try {
+      // Crear documento PDF
+      const doc = new PDFDocument({ 
+        margin: 50,
+        size: 'A4',
+        bufferPages: true
+      });
+
+      // Crear buffers para el PDF
+      const chunks = [];
+      doc.on('data', (chunk) => chunks.push(chunk));
+      doc.on('end', () => {
+        const pdfBuffer = Buffer.concat(chunks);
+        resolve(pdfBuffer);
+      });
+
+      // ========== ENCABEZADO PROFESIONAL ==========
+      // Fondo degradado
+      doc.rect(0, 0, doc.page.width, 120)
+         .fillLinearGradient(0, 0, doc.page.width, 0, '#1a237e', '#0d47a1')
+         .fill();
+
+      // Logo y título
+      doc.fillColor('white')
+         .fontSize(24)
+         .font('Helvetica-Bold')
+         .text('REPORTE DE CONSUMO', 50, 40, { align: 'center' });
+
+      doc.fontSize(16)
+         .font('Helvetica')
+         .text('Sistema de Monitoreo de Impresoras', 50, 70, { align: 'center' });
+
+      // ========== INFORMACIÓN DE LA EMPRESA ==========
+      doc.y = 130;
+      doc.fillColor('#333')
+         .fontSize(12)
+         .text(`Empresa: ${impresora.empresaId?.nombre || 'N/A'}`, 50, doc.y)
+         .text(`Impresora: ${impresora.printerName || impresora.sysName || impresora.host}`, 50, doc.y + 20)
+         .text(`Modelo: ${impresora.model || impresora.sysDescr || 'N/A'}`, 50, doc.y + 40)
+         .text(`Período: ${corte.periodo || 'No especificado'}`, 50, doc.y + 60)
+         .text(`Fecha de generación: ${new Date().toLocaleDateString()}`, 50, doc.y + 80);
+
+      // ========== RESUMEN DESTACADO ==========
+      doc.y += 110;
+      doc.rect(50, doc.y, doc.page.width - 100, 80)
+         .fillColor('#e3f2fd')
+         .fill()
+         .strokeColor('#90caf9')
+         .stroke();
+
+      doc.fillColor('#1565c0')
+         .fontSize(18)
+         .font('Helvetica-Bold')
+         .text('📊 RESUMEN DEL MES', 70, doc.y + 20);
+
+      doc.fillColor('#333')
+         .fontSize(24)
+         .font('Helvetica-Bold')
+         .text(`${corte.totalPaginasGeneral.toLocaleString()}`, 70, doc.y + 45)
+         .fontSize(12)
+         .text('PÁGINAS TOTALES', 70, doc.y + 75);
+
+      doc.fillColor('#2e7d32')
+         .fontSize(16)
+         .text(`B/N: ${corte.totalPaginasMono.toLocaleString()}`, 200, doc.y + 45)
+         .fillColor('#c62828')
+         .text(`Color: ${corte.totalPaginasColor.toLocaleString()}`, 200, doc.y + 65);
+
+      // ========== TABLA DE CONTADORES ==========
+      doc.y += 100;
+      
+      const table = {
+        headers: [
+          { label: 'Concepto', width: 200 },
+          { label: 'Contador Inicial', width: 100 },
+          { label: 'Contador Final', width: 100 },
+          { label: 'Total Período', width: 100 }
+        ],
+        rows: [
+          ['Páginas B/N', corte.contadorInicioMono.toLocaleString(), corte.contadorFinMono.toLocaleString(), corte.totalPaginasMono.toLocaleString()],
+          ['Páginas Color', corte.contadorInicioColor.toLocaleString(), corte.contadorFinColor.toLocaleString(), corte.totalPaginasColor.toLocaleString()],
+          ['TOTAL GENERAL', (corte.contadorInicioMono + corte.contadorInicioColor).toLocaleString(), (corte.contadorFinMono + corte.contadorFinColor).toLocaleString(), corte.totalPaginasGeneral.toLocaleString()]
+        ]
+      };
+
+      // Estilos de la tabla
+      doc.fillColor('#333');
+      doc.table(table, {
+        prepareHeader: () => doc.font('Helvetica-Bold').fontSize(10),
+        prepareRow: (row, i) => doc.font('Helvetica').fontSize(9),
+        padding: 5,
+      });
+
+      // ========== INFORMACIÓN DE TONER ==========
+      if (corte.suppliesFin && corte.suppliesFin.length > 0) {
+        doc.y += 20;
+        doc.fillColor('#333')
+           .fontSize(14)
+           .font('Helvetica-Bold')
+           .text('🖨️ ESTADO DE CONSUMIBLES', 50, doc.y);
+
+        doc.y += 10;
+        corte.suppliesFin.forEach((supply, index) => {
+          if (doc.y > doc.page.height - 100) {
+            doc.addPage();
+            doc.y = 50;
+          }
+          
+          const nivel = supply.level || 0;
+          const max = supply.max || 100;
+          const porcentaje = Math.round((nivel / max) * 100);
+          
+          doc.fontSize(10)
+             .font('Helvetica')
+             .text(`${supply.name || `Consumible ${index + 1}`}:`, 70, doc.y + 5);
+          
+          // Barra de progreso simple
+          doc.rect(200, doc.y, 200, 15)
+             .fillColor('#e0e0e0')
+             .fill()
+             .strokeColor('#bdbdbd')
+             .stroke();
+          
+          if (porcentaje > 0) {
+            doc.rect(200, doc.y, (200 * porcentaje) / 100, 15)
+               .fillColor(porcentaje <= 20 ? '#f44336' : (porcentaje <= 50 ? '#ff9800' : '#4caf50'))
+               .fill();
+          }
+          
+          doc.fillColor('#333')
+             .text(`${porcentaje}%`, 410, doc.y + 5);
+          
+          doc.y += 25;
+        });
+      }
+
+      // ========== PIE DE PÁGINA ==========
+      const pageHeight = doc.page.height;
+      doc.fillColor('#666')
+         .fontSize(8)
+         .font('Helvetica')
+         .text('Reporte generado automáticamente por Sistema de Monitoreo de Impresoras', 
+               50, pageHeight - 30, { align: 'center' });
+
+      // Finalizar documento
+      doc.end();
+
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
 
 
 // Función para generar ApiKey aleatoria
@@ -333,6 +555,88 @@ function computeDerivedOnline(latest, now = Date.now()) {
   const age = now - ts;
   return age <= ONLINE_STALE_MS;
 }
+
+// 🧮 HELPER PARA CÁLCULOS DE CORTES - PEGAR DESPUÉS DE computeDerivedOnline
+function calcularPeriodoCorte(ultimoCorte, contadoresActuales) {
+  if (!ultimoCorte) {
+    // Primer corte - no hay período anterior
+    return {
+      contadorInicioMono: 0,
+      contadorInicioColor: 0,
+      totalPaginasMono: contadoresActuales.lastPageMono || 0,
+      totalPaginasColor: contadoresActuales.lastPageColor || 0,
+      totalPaginasGeneral: contadoresActuales.lastPageCount || 0,
+      periodo: 'Desde instalación',
+      esPrimerCorte: true
+    };
+  }
+
+  // Cálculo para cortes subsiguientes
+  const contadorInicioMono = ultimoCorte.contadorFinMono;
+  const contadorInicioColor = ultimoCorte.contadorFinColor;
+  
+  const totalPaginasMono = Math.max(0, (contadoresActuales.lastPageMono || 0) - contadorInicioMono);
+  const totalPaginasColor = Math.max(0, (contadoresActuales.lastPageColor || 0) - contadorInicioColor);
+  const totalPaginasGeneral = Math.max(0, (contadoresActuales.lastPageCount || 0) - (contadorInicioMono + contadorInicioColor));
+
+  // Formatear período para el PDF
+  const fechaInicio = new Date(ultimoCorte.fechaCorte);
+  const fechaFin = new Date();
+  const periodo = `${fechaInicio.toLocaleDateString()} - ${fechaFin.toLocaleDateString()}`;
+
+  return {
+    contadorInicioMono,
+    contadorInicioColor,
+    totalPaginasMono,
+    totalPaginasColor,
+    totalPaginasGeneral,
+    periodo,
+    esPrimerCorte: false,
+    fechaInicio: ultimoCorte.fechaCorte,
+    fechaFin: new Date()
+  };
+}
+
+// 📊 HELPER PARA DETECTAR CAMBIOS DE TONER - PEGAR INMEDIATAMENTE DESPUÉS
+function analizarCambiosToner(suppliesInicio, suppliesFin) {
+  const cambios = [];
+  
+  if (!suppliesInicio || !suppliesFin) return cambios;
+
+  suppliesInicio.forEach((supplyInicio, index) => {
+    const supplyFin = suppliesFin[index];
+    if (!supplyFin) return;
+
+    const nombre = supplyInicio.name || `Consumible ${index + 1}`;
+    const nivelInicio = supplyInicio.level;
+    const nivelFin = supplyFin.level;
+    
+    // Detectar si hubo reinicio (nivel aumentó significativamente)
+    if (nivelFin > nivelInicio + 10) { // Margen del 10% para evitar fluctuaciones
+      cambios.push({
+        nombre,
+        tipo: 'reinicio',
+        anterior: nivelInicio,
+        nuevo: nivelFin,
+        fecha: new Date().toISOString()
+      });
+    }
+    // Detectar si bajo críticamente
+    else if (nivelFin <= 20 && nivelInicio > 20) {
+      cambios.push({
+        nombre,
+        tipo: 'bajo',
+        anterior: nivelInicio,
+        nuevo: nivelFin,
+        fecha: new Date().toISOString()
+      });
+    }
+  });
+
+  return cambios;
+}
+
+
 
 // 📌 Endpoint para crear empresa y devolver ApiKey
 app.post('/api/empresas', async (req, res) => {
@@ -545,6 +849,138 @@ app.post('/api/metrics/impresoras', async (req, res) => {
     res.status(500).json({ ok: false, error: 'Error ingesta impresoras' });
   }
 });
+
+
+// ENDPOINT PARA REGISTRAR CORTE ////
+app.post('/api/impresoras/:id/registrar-corte', async (req, res) => {
+  try {
+    const printerId = req.params.id;
+    
+    // 1. Buscar impresora y sus datos latest
+    const impresora = await Impresora.findById(printerId).lean();
+    if (!impresora) {
+      return res.status(404).json({ ok: false, error: 'Impresora no encontrada' });
+    }
+
+    const latest = await ImpresoraLatest.findOne({ printerId }).lean();
+    if (!latest) {
+      return res.status(404).json({ ok: false, error: 'Datos de impresora no encontrados' });
+    }
+
+    // 2. Buscar último corte y calcular período automáticamente
+    let ultimoCorte = null;
+    if (latest.ultimoCorteId) {
+      ultimoCorte = await CortesMensuales.findById(latest.ultimoCorteId).lean();
+    }
+
+    // 3. Usar helper para cálculos automáticos
+    const ahora = new Date();
+    const calculos = calcularPeriodoCorte(ultimoCorte, latest);
+    const cambiosToner = analizarCambiosToner(
+      ultimoCorte?.suppliesFin || [], 
+      latest.lastSupplies || []
+    );
+
+    // 4. Crear nuevo registro de corte (usando los cálculos automáticos)
+    const nuevoCorte = new CortesMensuales({
+      printerId,
+      empresaId: impresora.empresaId,
+      fechaCorte: ahora,
+      mes: ahora.getMonth() + 1,
+      año: ahora.getFullYear(),
+      
+      contadorInicioMono: calculos.contadorInicioMono,
+      contadorInicioColor: calculos.contadorInicioColor,
+      contadorFinMono: latest.lastPageMono || 0,
+      contadorFinColor: latest.lastPageColor || 0,
+      
+      totalPaginasMono: calculos.totalPaginasMono,
+      totalPaginasColor: calculos.totalPaginasColor,
+      totalPaginasGeneral: calculos.totalPaginasGeneral,
+      
+      suppliesInicio: ultimoCorte?.suppliesFin || [],
+      suppliesFin: latest.lastSupplies || [],
+      
+      nombreImpresora: impresora.printerName || impresora.sysName || impresora.host,
+      modeloImpresora: impresora.model || impresora.sysDescr || ''
+    });
+
+    const corteGuardado = await nuevoCorte.save();
+
+    // 5. Actualizar referencia en ImpresoraLatest
+    await ImpresoraLatest.findOneAndUpdate(
+      { printerId },
+      { $set: { ultimoCorteId: corteGuardado._id } }
+    );
+
+    res.json({
+      ok: true,
+      corteId: corteGuardado._id,
+      mensaje: 'Corte registrado correctamente',
+      datos: {
+        periodo: `${contadorInicioMono + contadorInicioColor} → ${latest.lastPageCount || 0}`,
+        totalPaginas: totalPaginasGeneral,
+        fecha: ahora.toLocaleDateString()
+      }
+    });
+
+  } catch (err) {
+    console.error('❌ Error registrando corte:', err);
+    res.status(500).json({ ok: false, error: 'Error interno registrando corte' });
+  }
+});
+
+
+// 📄 ENDPOINT PARA GENERAR /////
+app.get('/api/impresoras/:id/generar-pdf', async (req, res) => {
+  try {
+    const printerId = req.params.id;
+    
+    // 1. Verificar que existe un corte registrado
+    const latest = await ImpresoraLatest.findOne({ printerId })
+      .populate('ultimoCorteId')
+      .lean();
+
+    if (!latest || !latest.ultimoCorteId) {
+      return res.status(400).json({ 
+        ok: false, 
+        error: 'Primero debe registrar un corte para generar el PDF' 
+      });
+    }
+
+    const corte = latest.ultimoCorteId;
+    const impresora = await Impresora.findById(printerId)
+      .populate('empresaId')
+      .lean();
+
+    // 2. Calcular período para el PDF
+    let ultimoCorteAnterior = null;
+    if (corte.ultimoCorteId) {
+      ultimoCorteAnterior = await CortesMensuales.findById(corte.ultimoCorteId).lean();
+    }
+    
+    const calculosPeriodo = calcularPeriodoCorte(ultimoCorteAnterior, latest);
+    
+    // Preparar datos para el PDF
+    const datosPDF = {
+      ...corte,
+      periodo: calculosPeriodo.periodo
+    };
+
+    // 3. Generar PDF profesional
+    const pdfBuffer = await generarPDFProfesional(datosPDF, impresora);
+
+    // 4. Enviar PDF como respuesta
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="reporte-${impresora.printerName || impresora.host}-${Date.now()}.pdf"`);
+    res.send(pdfBuffer);
+
+  } catch (err) {
+    console.error('❌ Error generando PDF:', err);
+    res.status(500).json({ ok: false, error: 'Error interno generando PDF: ' + err.message });
+  }
+});
+
 
 app.delete('/api/empresas/:id', async (req, res) => {
   try {
