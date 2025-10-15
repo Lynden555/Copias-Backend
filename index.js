@@ -398,9 +398,8 @@ async function generarPDFProfesional(corte, impresora) {
       });
 
       // ========== ENCABEZADO PROFESIONAL ==========
-      // Fondo degradado
       doc.rect(0, 0, doc.page.width, 120)
-         .fillLinearGradient(0, 0, doc.page.width, 0, '#1a237e', '#0d47a1')
+         .fillColor('#1a237e')
          .fill();
 
       // Logo y título
