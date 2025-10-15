@@ -383,7 +383,7 @@ async function generarPDFProfesional(corte, impresora) {
   return new Promise((resolve, reject) => {
     try {
       const doc = new PDFDocument({ 
-        margin: 30, // Menos margen para más espacio
+        margin: 30,
         size: 'A4',
         bufferPages: true
       });
@@ -395,7 +395,7 @@ async function generarPDFProfesional(corte, impresora) {
         resolve(pdfBuffer);
       });
 
-      // ========== ENCABEZADO COMPACTO ==========
+      // ========== ENCABEZADO ELEGANTE ==========
       doc.rect(0, 0, doc.page.width, 80)
          .fillColor('#1a237e')
          .fill();
@@ -409,7 +409,7 @@ async function generarPDFProfesional(corte, impresora) {
          .font('Helvetica')
          .text('Sistema de Monitoreo de Impresoras', 30, 50, { align: 'center' });
 
-      // ========== INFORMACIÓN COMPACTA ==========
+      // ========== INFORMACIÓN BÁSICA ==========
       doc.y = 100;
       doc.fillColor('#333')
          .fontSize(10)
@@ -417,52 +417,69 @@ async function generarPDFProfesional(corte, impresora) {
          .text(`Impresora: ${impresora.printerName || impresora.sysName || impresora.host}`, 30, doc.y + 15)
          .text(`Modelo: ${impresora.model || impresora.sysDescr || 'N/A'}`, 30, doc.y + 30)
          .text(`Período: ${corte.periodo || 'No especificado'}`, 30, doc.y + 45)
-         .text(`Fecha: ${new Date().toLocaleDateString()}`, 30, doc.y + 60);
+         .text(`Fecha de generación: ${new Date().toLocaleDateString()}`, 30, doc.y + 60);
 
-      // ========== RESUMEN DESTACADO COMPACTO ==========
-      doc.y = 180;
+      // ========== CONTADOR ACTUAL DESTACADO ==========
+      doc.y = 190;
       
-      // Caja de resumen
-      doc.rect(30, doc.y, doc.page.width - 60, 60)
-         .fillColor('#e3f2fd')
+      // Marco para contador actual
+      doc.rect(30, doc.y, doc.page.width - 60, 70)
+         .fillColor('#f5f5f5')
          .fill()
-         .strokeColor('#90caf9')
+         .strokeColor('#e0e0e0')
          .stroke();
 
-      doc.fillColor('#1565c0')
+      doc.fillColor('#333')
          .fontSize(14)
          .font('Helvetica-Bold')
-         .text('RESUMEN DEL PERÍODO', 45, doc.y + 10);
+         .text('CONTADOR ACTUAL', 45, doc.y + 15);
 
-      // Total páginas GRANDE
-      doc.fillColor('#333')
-         .fontSize(24)
+      doc.fillColor('#1565c0')
+         .fontSize(28)
          .font('Helvetica-Bold')
-         .text(corte.totalPaginasGeneral.toLocaleString(), 45, doc.y + 35)
+         .text(corte.contadorFinGeneral.toLocaleString(), 45, doc.y + 40)
          .fontSize(10)
-         .text('PÁGINAS TOTALES', 45, doc.y + 55);
+         .fillColor('#666')
+         .text('TOTAL DE PÁGINAS IMPRESAS', 45, doc.y + 65);
 
-      // Desglose B/N y Color
+      // ========== CONSUMO DEL PERÍODO (MUY DESTACADO) ==========
+      doc.y += 100;
+      
+      // Marco de consumo - MÁS DESTACADO
+      doc.rect(30, doc.y, doc.page.width - 60, 90)
+         .fillColor('#e8f5e9')
+         .fill()
+         .strokeColor('#4caf50')
+         .strokeWidth(2)
+         .stroke();
+
       doc.fillColor('#2e7d32')
-         .fontSize(12)
-         .text(`B/N: ${corte.totalPaginasMono.toLocaleString()}`, 180, doc.y + 35)
-         .fillColor('#c62828')
-         .text(`Color: ${corte.totalPaginasColor.toLocaleString()}`, 180, doc.y + 50);
+         .fontSize(18)
+         .font('Helvetica-Bold')
+         .text('📈 CONSUMO DEL PERÍODO', 45, doc.y + 15);
 
-      // ========== TABLA COMPACTA ==========
-      doc.y += 80;
+      // Número GRANDE de consumo
+      doc.fillColor('#1b5e20')
+         .fontSize(36)
+         .font('Helvetica-Bold')
+         .text(corte.totalPaginasGeneral.toLocaleString(), 45, doc.y + 45)
+         .fontSize(12)
+         .fillColor('#388e3c')
+         .text('PÁGINAS IMPRESAS EN ESTE PERÍODO', 45, doc.y + 85);
+
+      // ========== DETALLE DEL CÁLCULO ==========
+      doc.y += 120;
       
       const table = {
         headers: [
-          { label: 'Concepto', width: 150 },
-          { label: 'Inicial', width: 80 },
-          { label: 'Final', width: 80 },
-          { label: 'Total Período', width: 100 }
+          { label: 'Detalle', width: 200 },
+          { label: 'Valor', width: 120 }
         ],
         rows: [
-          ['Páginas B/N', corte.contadorInicioMono.toLocaleString(), corte.contadorFinMono.toLocaleString(), corte.totalPaginasMono.toLocaleString()],
-          ['Páginas Color', corte.contadorInicioColor.toLocaleString(), corte.contadorFinColor.toLocaleString(), corte.totalPaginasColor.toLocaleString()],
-          ['TOTAL GENERAL', (corte.contadorInicioMono + corte.contadorInicioColor).toLocaleString(), (corte.contadorFinMono + corte.contadorFinColor).toLocaleString(), corte.totalPaginasGeneral.toLocaleString()]
+          ['Contador al inicio del período', corte.contadorInicioGeneral.toLocaleString()],
+          ['Contador al final del período', corte.contadorFinGeneral.toLocaleString()],
+          ['Consumo calculado', corte.totalPaginasGeneral.toLocaleString()],
+          ['Duración del período', corte.periodo || 'No especificado']
         ]
       };
 
@@ -470,55 +487,10 @@ async function generarPDFProfesional(corte, impresora) {
       doc.table(table, {
         prepareHeader: () => doc.font('Helvetica-Bold').fontSize(9),
         prepareRow: (row, i) => doc.font('Helvetica').fontSize(8),
-        padding: 4,
+        padding: 5,
       });
 
-      // ========== TONER COMPACTO ==========
-      if (corte.suppliesFin && corte.suppliesFin.length > 0) {
-        doc.y += 10;
-        doc.fillColor('#333')
-           .fontSize(12)
-           .font('Helvetica-Bold')
-           .text('ESTADO DE CONSUMIBLES', 30, doc.y);
-
-        doc.y += 5;
-        
-        // Máximo 4 consumibles para que quepa en una página
-        const maxSupplies = Math.min(corte.suppliesFin.length, 4);
-        
-        for (let i = 0; i < maxSupplies; i++) {
-          const supply = corte.suppliesFin[i];
-          if (doc.y > 650) break; // Evitar que se pase de página
-          
-          const nivel = supply.level || 0;
-          const max = supply.max || 100;
-          const porcentaje = Math.round((nivel / max) * 100);
-          
-          doc.fontSize(9)
-             .font('Helvetica')
-             .text(`${supply.name || `Consumible ${i + 1}`}:`, 45, doc.y + 5);
-          
-          // Barra de progreso compacta
-          doc.rect(150, doc.y, 200, 12)
-             .fillColor('#e0e0e0')
-             .fill()
-             .strokeColor('#bdbdbd')
-             .stroke();
-          
-          if (porcentaje > 0) {
-            doc.rect(150, doc.y, (200 * porcentaje) / 100, 12)
-               .fillColor(porcentaje <= 20 ? '#f44336' : (porcentaje <= 50 ? '#ff9800' : '#4caf50'))
-               .fill();
-          }
-          
-          doc.fillColor('#333')
-             .text(`${porcentaje}%`, 360, doc.y + 5);
-          
-          doc.y += 20;
-        }
-      }
-
-      // ========== PIE DE PÁGINA COMPACTO ==========
+      // ========== PIE DE PÁGINA ==========
       const pageHeight = doc.page.height;
       doc.fillColor('#666')
          .fontSize(7)
@@ -556,18 +528,13 @@ function computeDerivedOnline(latest, now = Date.now()) {
 
 // 🧮 HELPER PARA CÁLCULOS DE CORTES - PEGAR DESPUÉS DE computeDerivedOnline
 function calcularPeriodoCorte(ultimoCorte, contadoresActuales) {
-  // Si no hay contadores específicos, usar el general
-  const monoActual = contadoresActuales.lastPageMono || 0;
-  const colorActual = contadoresActuales.lastPageColor || 0;
   const generalActual = contadoresActuales.lastPageCount || 0;
 
   if (!ultimoCorte) {
     // Primer corte
     return {
-      contadorInicioMono: 0,
-      contadorInicioColor: 0,
-      totalPaginasMono: monoActual,
-      totalPaginasColor: colorActual,
+      contadorInicioGeneral: 0,
+      contadorFinGeneral: generalActual,
       totalPaginasGeneral: generalActual,
       periodo: 'Desde instalación',
       esPrimerCorte: true
@@ -575,27 +542,19 @@ function calcularPeriodoCorte(ultimoCorte, contadoresActuales) {
   }
 
   // Cálculo para cortes subsiguientes
-  const contadorInicioMono = ultimoCorte.contadorFinMono || 0;
-  const contadorInicioColor = ultimoCorte.contadorFinColor || 0;
-  
-  const totalPaginasMono = Math.max(0, monoActual - contadorInicioMono);
-  const totalPaginasColor = Math.max(0, colorActual - contadorInicioColor);
-  const totalPaginasGeneral = Math.max(0, generalActual - (contadorInicioMono + contadorInicioColor));
+  const contadorInicioGeneral = ultimoCorte.contadorFinGeneral || 0;
+  const totalPaginasGeneral = Math.max(0, generalActual - contadorInicioGeneral);
 
   const fechaInicio = new Date(ultimoCorte.fechaCorte);
   const fechaFin = new Date();
   const periodo = `${fechaInicio.toLocaleDateString()} - ${fechaFin.toLocaleDateString()}`;
 
   return {
-    contadorInicioMono,
-    contadorInicioColor,
-    totalPaginasMono,
-    totalPaginasColor,
+    contadorInicioGeneral,
+    contadorFinGeneral: generalActual,
     totalPaginasGeneral,
     periodo,
-    esPrimerCorte: false,
-    fechaInicio: ultimoCorte.fechaCorte,
-    fechaFin: new Date()
+    esPrimerCorte: false
   };
 }
 
