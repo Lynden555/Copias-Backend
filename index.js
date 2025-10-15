@@ -340,23 +340,15 @@ const cortesMensualesSchema = new mongoose.Schema({
   },
   
   // 📅 Fechas y período
-  contadorFinGeneral: { type: Number, required: true },
-
   fechaCorte: { type: Date, default: Date.now },
-  mes: { type: Number, required: true }, // 1-12
-  año: { type: Number, required: true }, // 2024
+  mes: { type: Number, required: true },
+  año: { type: Number, required: true },
   
-  // 🔢 CONTADORES INICIO (del último corte)
-  contadorInicioMono: { type: Number, default: 0 },
-  contadorInicioColor: { type: Number, default: 0 },
+  // 🔢 CONTADORES GENERALES (SOLO USAMOS ESTOS)
+  contadorInicioGeneral: { type: Number, default: 0 },
+  contadorFinGeneral: { type: Number, required: true },
   
-  // 🔢 CONTADORES FIN (actuales al hacer corte)
-  contadorFinMono: { type: Number, required: true },
-  contadorFinColor: { type: Number, required: true },
-  
-  // 📈 TOTALES CALCULADOS
-  totalPaginasMono: { type: Number, required: true },
-  totalPaginasColor: { type: Number, required: true },
+  // 📈 TOTAL CALCULADO
   totalPaginasGeneral: { type: Number, required: true },
   
   // 🖨️ ESTADO DE TONER
@@ -368,10 +360,11 @@ const cortesMensualesSchema = new mongoose.Schema({
   
   // 🏷️ METADATOS
   nombreImpresora: { type: String, default: '' },
-  modeloImpresora: { type: String, default: '' }
+  modeloImpresora: { type: String, default: '' },
+  periodo: { type: String, default: '' }
 }, { 
   strict: true,
-  timestamps: true // agrega createdAt y updatedAt automáticamente
+  timestamps: true
 });
 
 // Índices para búsquedas rápidas
@@ -397,7 +390,7 @@ async function generarPDFProfesional(corte, impresora) {
         resolve(pdfBuffer);
       });
 
-      // ========== ENCABEZADO ELEGANTE ==========
+      // ========== ENCABEZADO PROFESIONAL ==========
       doc.rect(0, 0, doc.page.width, 80)
          .fillColor('#1a237e')
          .fill();
@@ -411,7 +404,7 @@ async function generarPDFProfesional(corte, impresora) {
          .font('Helvetica')
          .text('Sistema de Monitoreo de Impresoras', 30, 50, { align: 'center' });
 
-      // ========== INFORMACIÓN BÁSICA ==========
+      // ========== INFORMACIÓN DE LA EMPRESA ==========
       doc.y = 100;
       doc.fillColor('#333')
          .fontSize(10)
@@ -424,7 +417,6 @@ async function generarPDFProfesional(corte, impresora) {
       // ========== CONTADOR ACTUAL DESTACADO ==========
       doc.y = 190;
       
-      // Marco para contador actual
       doc.rect(30, doc.y, doc.page.width - 60, 70)
          .fillColor('#f5f5f5')
          .fill()
@@ -444,10 +436,9 @@ async function generarPDFProfesional(corte, impresora) {
          .fillColor('#666')
          .text('TOTAL DE PÁGINAS IMPRESAS', 45, doc.y + 65);
 
-      // ========== CONSUMO DEL PERÍODO (MUY DESTACADO) ==========
+      // ========== CONSUMO DEL PERÍODO (SUPER DESTACADO) ==========
       doc.y += 100;
       
-      // Marco de consumo - MÁS DESTACADO
       doc.rect(30, doc.y, doc.page.width - 60, 90)
          .fillColor('#e8f5e9')
          .fill()
@@ -460,7 +451,6 @@ async function generarPDFProfesional(corte, impresora) {
          .font('Helvetica-Bold')
          .text('📈 CONSUMO DEL PERÍODO', 45, doc.y + 15);
 
-      // Número GRANDE de consumo
       doc.fillColor('#1b5e20')
          .fontSize(36)
          .font('Helvetica-Bold')
@@ -530,14 +520,14 @@ function computeDerivedOnline(latest, now = Date.now()) {
 
 // 🧮 HELPER PARA CÁLCULOS DE CORTES - PEGAR DESPUÉS DE computeDerivedOnline
 function calcularPeriodoCorte(ultimoCorte, contadoresActuales) {
-  const generalActual = contadoresActuales.lastPageCount || 0;
+  const contadorActual = contadoresActuales.lastPageCount || 0;
 
   if (!ultimoCorte) {
-    // Primer corte
+    // Primer corte - no hay período anterior
     return {
       contadorInicioGeneral: 0,
-      contadorFinGeneral: generalActual,
-      totalPaginasGeneral: generalActual,
+      contadorFinGeneral: contadorActual,
+      totalPaginasGeneral: contadorActual,
       periodo: 'Desde instalación',
       esPrimerCorte: true
     };
@@ -545,21 +535,21 @@ function calcularPeriodoCorte(ultimoCorte, contadoresActuales) {
 
   // Cálculo para cortes subsiguientes
   const contadorInicioGeneral = ultimoCorte.contadorFinGeneral || 0;
-  const totalPaginasGeneral = Math.max(0, generalActual - contadorInicioGeneral);
+  const totalPaginasGeneral = Math.max(0, contadorActual - contadorInicioGeneral);
 
+  // Formatear período para el PDF
   const fechaInicio = new Date(ultimoCorte.fechaCorte);
   const fechaFin = new Date();
   const periodo = `${fechaInicio.toLocaleDateString()} - ${fechaFin.toLocaleDateString()}`;
 
   return {
     contadorInicioGeneral,
-    contadorFinGeneral: generalActual,
+    contadorFinGeneral: contadorActual,
     totalPaginasGeneral,
     periodo,
     esPrimerCorte: false
   };
 }
-
 // 📊 HELPER PARA DETECTAR CAMBIOS DE TONER - PEGAR INMEDIATAMENTE DESPUÉS
 function analizarCambiosToner(suppliesInicio, suppliesFin) {
   const cambios = [];
@@ -857,7 +847,7 @@ app.post('/api/impresoras/:id/registrar-corte', async (req, res) => {
       calculosResultado: calculos
     });
 
-    // 4. Crear nuevo registro de corte (usando los cálculos automáticos)
+
     const nuevoCorte = new CortesMensuales({
       printerId,
       empresaId: impresora.empresaId,
@@ -865,14 +855,11 @@ app.post('/api/impresoras/:id/registrar-corte', async (req, res) => {
       mes: ahora.getMonth() + 1,
       año: ahora.getFullYear(),
       
-      contadorInicioMono: calculos.contadorInicioMono,
-      contadorInicioColor: calculos.contadorInicioColor,
-      contadorFinMono: latest.lastPageMono || 0,
-      contadorFinColor: latest.lastPageColor || 0,
-      
-      totalPaginasMono: calculos.totalPaginasMono,
-      totalPaginasColor: calculos.totalPaginasColor,
+      // 🆕 SOLO CONTADORES GENERALES
+      contadorInicioGeneral: calculos.contadorInicioGeneral,
+      contadorFinGeneral: calculos.contadorFinGeneral,
       totalPaginasGeneral: calculos.totalPaginasGeneral,
+      periodo: calculos.periodo,
       
       suppliesInicio: ultimoCorte?.suppliesFin || [],
       suppliesFin: latest.lastSupplies || [],
