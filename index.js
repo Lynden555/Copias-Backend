@@ -391,10 +391,12 @@ async function generarPDFProfesional(corte, impresora) {
       });
 
       // ========== ENCABEZADO PROFESIONAL ==========
+      // Fondo azul sólido
       doc.rect(0, 0, doc.page.width, 80)
          .fillColor('#1a237e')
          .fill();
 
+      // Título blanco
       doc.fillColor('white')
          .fontSize(20)
          .font('Helvetica-Bold')
@@ -417,45 +419,46 @@ async function generarPDFProfesional(corte, impresora) {
       // ========== CONTADOR ACTUAL DESTACADO ==========
       doc.y = 190;
       
+      // Marco gris claro para contador actual
       doc.rect(30, doc.y, doc.page.width - 60, 70)
          .fillColor('#f5f5f5')
-         .fill()
-         .strokeColor('#e0e0e0')
-         .stroke();
+         .fill();
 
       doc.fillColor('#333')
          .fontSize(14)
          .font('Helvetica-Bold')
          .text('CONTADOR ACTUAL', 45, doc.y + 15);
 
+      // Número grande azul
       doc.fillColor('#1565c0')
          .fontSize(28)
          .font('Helvetica-Bold')
-         .text(corte.contadorFinGeneral.toLocaleString(), 45, doc.y + 40)
-         .fontSize(10)
+         .text(corte.contadorFinGeneral.toLocaleString(), 45, doc.y + 40);
+
+      doc.fontSize(10)
          .fillColor('#666')
          .text('TOTAL DE PÁGINAS IMPRESAS', 45, doc.y + 65);
 
-      // ========== CONSUMO DEL PERÍODO (SUPER DESTACADO) ==========
+      // ========== CONSUMO DEL PERÍODO (MUY DESTACADO) ==========
       doc.y += 100;
       
+      // Marco verde para consumo
       doc.rect(30, doc.y, doc.page.width - 60, 90)
          .fillColor('#e8f5e9')
-         .fill()
-         .strokeColor('#4caf50')
-         .strokeWidth(2)
-         .stroke();
+         .fill();
 
       doc.fillColor('#2e7d32')
          .fontSize(18)
          .font('Helvetica-Bold')
-         .text('📈 CONSUMO DEL PERÍODO', 45, doc.y + 15);
+         .text('CONSUMO DEL PERÍODO', 45, doc.y + 15);
 
+      // Número GRANDE verde de consumo
       doc.fillColor('#1b5e20')
          .fontSize(36)
          .font('Helvetica-Bold')
-         .text(corte.totalPaginasGeneral.toLocaleString(), 45, doc.y + 45)
-         .fontSize(12)
+         .text(corte.totalPaginasGeneral.toLocaleString(), 45, doc.y + 45);
+
+      doc.fontSize(12)
          .fillColor('#388e3c')
          .text('PÁGINAS IMPRESAS EN ESTE PERÍODO', 45, doc.y + 85);
 
