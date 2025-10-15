@@ -636,25 +636,73 @@ app.post('/api/empresas', async (req, res) => {
   }
 });
 
-app.get('/api/empresas', async (req, res) => {
+// 📄 ENDPOINT PARA GENERAR PDF - VERSIÓN CORREGIDA
+app.get('/api/impresoras/:id/generar-pdf', async (req, res) => {
   try {
-    const { empresaId, ciudad } = req.query;
-
-    // 🧠 filtrar por el scope del login (ambos son strings en tu schema)
-    const q = {};
-    if (empresaId) q.empresaId = String(empresaId);
-    if (ciudad)    q.ciudad    = String(ciudad);
-
-    // 👇 usa q (antes estabas usando {})
-    const empresas = await Empresa
-      .find(q, { _id: 1, nombre: 1 })   // si quieres, añade ciudad:1 para debug
-      .sort({ createdAt: -1 })
+    const printerId = req.params.id;
+    
+    // 1. Verificar que existe un corte registrado
+    const latest = await ImpresoraLatest.findOne({ printerId })
+      .populate('ultimoCorteId')
       .lean();
 
-    res.json({ ok: true, data: empresas });
+    if (!latest || !latest.ultimoCorteId) {
+      return res.status(400).json({ 
+        ok: false, 
+        error: 'Primero debe registrar un corte para generar el PDF' 
+      });
+    }
+
+    const corte = latest.ultimoCorteId;
+    const impresora = await Impresora.findById(printerId)
+      .populate('empresaId')
+      .lean();
+
+    // 2. 🆕 USAR CONTADORES ACTUALES EN TIEMPO REAL, NO LOS GUARDADOS
+    const contadoresActuales = {
+      lastPageCount: latest.lastPageCount || 0,
+      lastPageMono: latest.lastPageMono || 0,
+      lastPageColor: latest.lastPageColor || 0
+    };
+
+    // 3. Calcular período con datos ACTUALES
+    let ultimoCorteAnterior = null;
+    if (corte.ultimoCorteId) {
+      ultimoCorteAnterior = await CortesMensuales.findById(corte.ultimoCorteId).lean();
+    }
+    
+    const calculosPeriodo = calcularPeriodoCorte(ultimoCorteAnterior, contadoresActuales);
+    
+    // 4. 🆕 PREPARAR DATOS CON INFORMACIÓN ACTUAL
+    const datosPDF = {
+      // Información del corte guardado
+      ...corte,
+      // 🆕 SOBREESCRIBIR con datos actuales
+      contadorFinGeneral: contadoresActuales.lastPageCount,
+      totalPaginasGeneral: calculosPeriodo.totalPaginasGeneral,
+      periodo: calculosPeriodo.periodo,
+      // 🆕 AGREGAR datos de cálculo
+      contadorInicioGeneral: calculosPeriodo.contadorInicioGeneral
+    };
+
+    console.log('📊 DATOS PARA PDF:', {
+      contadorInicio: calculosPeriodo.contadorInicioGeneral,
+      contadorActual: contadoresActuales.lastPageCount,
+      consumoPeriodo: calculosPeriodo.totalPaginasGeneral,
+      periodo: calculosPeriodo.periodo
+    });
+
+    // 5. Generar PDF profesional
+    const pdfBuffer = await generarPDFProfesional(datosPDF, impresora);
+
+    // 6. Enviar PDF como respuesta
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="reporte-${impresora.printerName || impresora.host}-${Date.now()}.pdf"`);
+    res.send(pdfBuffer);
+
   } catch (err) {
-    console.error('❌ GET /api/empresas:', err);
-    res.status(500).json({ ok: false, error: 'Error listando empresas' });
+    console.error('❌ Error generando PDF:', err);
+    res.status(500).json({ ok: false, error: 'Error interno generando PDF: ' + err.message });
   }
 });
 
