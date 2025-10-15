@@ -1,12 +1,11 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const PDFDocument = require('pdfkit');
+const PDFDocument = require('pdfkit');
 const PDFTable = require('pdfkit-table');
-const fs = require('fs');
 const path = require('path');
 const cors = require('cors');
 const multer = require('multer');
-const path = require('path');
 const bcrypt = require('bcrypt');
 const { Expo } = require('expo-server-sdk');
 const expo = new Expo();
@@ -918,8 +917,8 @@ app.post('/api/impresoras/:id/registrar-corte', async (req, res) => {
       corteId: corteGuardado._id,
       mensaje: 'Corte registrado correctamente',
       datos: {
-        periodo: `${contadorInicioMono + contadorInicioColor} → ${latest.lastPageCount || 0}`,
-        totalPaginas: totalPaginasGeneral,
+        periodo: `${calculos.contadorInicioMono + calculos.contadorInicioColor} → ${latest.lastPageCount || 0}`,
+        totalPaginas: calculos.totalPaginasGeneral,
         fecha: ahora.toLocaleDateString()
       }
     });
