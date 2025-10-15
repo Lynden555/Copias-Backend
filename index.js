@@ -898,7 +898,6 @@ app.post('/api/impresoras/:id/registrar-corte', async (req, res) => {
 
 
 // 📄 ENDPOINT PARA GENERAR /////
-// 📄 ENDPOINT PARA GENERAR PDF - VERSIÓN CORREGIDA
 app.get('/api/impresoras/:id/generar-pdf', async (req, res) => {
   try {
     const printerId = req.params.id;
@@ -920,44 +919,24 @@ app.get('/api/impresoras/:id/generar-pdf', async (req, res) => {
       .populate('empresaId')
       .lean();
 
-    // 2. 🆕 USAR CONTADORES ACTUALES EN TIEMPO REAL, NO LOS GUARDADOS
-    const contadoresActuales = {
-      lastPageCount: latest.lastPageCount || 0,
-      lastPageMono: latest.lastPageMono || 0,
-      lastPageColor: latest.lastPageColor || 0
-    };
-
-    // 3. Calcular período con datos ACTUALES
+    // 2. Calcular período para el PDF
     let ultimoCorteAnterior = null;
     if (corte.ultimoCorteId) {
       ultimoCorteAnterior = await CortesMensuales.findById(corte.ultimoCorteId).lean();
     }
     
-    const calculosPeriodo = calcularPeriodoCorte(ultimoCorteAnterior, contadoresActuales);
+    const calculosPeriodo = calcularPeriodoCorte(ultimoCorteAnterior, latest);
     
-    // 4. 🆕 PREPARAR DATOS CON INFORMACIÓN ACTUAL
+    // Preparar datos para el PDF
     const datosPDF = {
-      // Información del corte guardado
       ...corte,
-      // 🆕 SOBREESCRIBIR con datos actuales
-      contadorFinGeneral: contadoresActuales.lastPageCount,
-      totalPaginasGeneral: calculosPeriodo.totalPaginasGeneral,
-      periodo: calculosPeriodo.periodo,
-      // 🆕 AGREGAR datos de cálculo
-      contadorInicioGeneral: calculosPeriodo.contadorInicioGeneral
+      periodo: calculosPeriodo.periodo
     };
 
-    console.log('📊 DATOS PARA PDF:', {
-      contadorInicio: calculosPeriodo.contadorInicioGeneral,
-      contadorActual: contadoresActuales.lastPageCount,
-      consumoPeriodo: calculosPeriodo.totalPaginasGeneral,
-      periodo: calculosPeriodo.periodo
-    });
-
-    // 5. Generar PDF profesional
+    // 3. Generar PDF profesional
     const pdfBuffer = await generarPDFProfesional(datosPDF, impresora);
 
-    // 6. Enviar PDF como respuesta
+    // 4. Enviar PDF como respuesta
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="reporte-${impresora.printerName || impresora.host}-${Date.now()}.pdf"`);
     res.send(pdfBuffer);
