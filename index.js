@@ -9,7 +9,6 @@ const bcrypt = require('bcrypt');
 const { Expo } = require('expo-server-sdk');
 const expo = new Expo();
 const cloudinary = require('./cloudinary'); // 👈 Importación al inicio
-const cron = require('node-cron');
 // 🔧 Cálculo de distancia en km entre dos coordenadas
 const obtenerDistanciaKm = (lat1, lon1, lat2, lon2) => {
   const R = 6371; // Radio de la Tierra en km
@@ -970,90 +969,6 @@ app.get('/api/online-policy', (_req, res) => {
 });
 
 
-// ==============================================
-// 🗑️ LIMPIEZA AUTOMÁTICA DE CORTES ANTIGUOS (3 MESES)
-// ==============================================
-
-//EJECUCIÓN AUTOMÁTICA: Día 1 de cada mes a las 2:00 AM
-cron.schedule('0 2 1 * *', async () => {
-  try {
-    console.log('🔄 Iniciando limpieza automática de cortes antiguos...');
-    
-    // Conservar solo los últimos 3 meses
-    const fechaLimite = new Date();
-    fechaLimite.setMonth(fechaLimite.getMonth() - 3);
-    
-    const resultado = await CortesMensuales.deleteMany({
-      fechaCorte: { $lt: fechaLimite }
-    });
-    
-    console.log(`✅ Limpieza completada: ${resultado.deletedCount} cortes eliminados (anteriores a ${fechaLimite.toLocaleDateString()})`);
-    
-  } catch (err) {
-    console.error('❌ Error en limpieza automática:', err);
-  }
-});
-
-// 🎯 ENDPOINT PARA LIMPIEZA MANUAL
-app.post('/api/limpiar-cortes-antiguos', async (req, res) => {
-  try {
-    const { meses = 3 } = req.body;
-    
-    const fechaLimite = new Date();
-    fechaLimite.setMonth(fechaLimite.getMonth() - meses);
-    
-    const resultado = await CortesMensuales.deleteMany({
-      fechaCorte: { $lt: fechaLimite }
-    });
-    
-    res.json({
-      ok: true,
-      eliminados: resultado.deletedCount,
-      mensaje: `Se conservan cortes desde ${fechaLimite.toLocaleDateString()} (últimos 3 meses)`,
-      detalles: `${resultado.deletedCount} cortes eliminados`
-    });
-    
-  } catch (err) {
-    console.error('❌ Error limpiando cortes:', err);
-    res.status(500).json({ ok: false, error: 'Error limpiando cortes' });
-  }
-});
-
-// ENDPOINT PARA VER ESTADO DE CORTES
-app.get('/api/estado-cortes', async (req, res) => {
-  try {
-    const totalCortes = await CortesMensuales.countDocuments();
-    
-    const corteMasAntiguo = await CortesMensuales.findOne()
-      .sort({ fechaCorte: 1 })
-      .select('fechaCorte nombreImpresora')
-      .lean();
-    
-    const corteMasReciente = await CortesMensuales.findOne()
-      .sort({ fechaCorte: -1 })
-      .select('fechaCorte nombreImpresora')
-      .lean();
-    
-    res.json({
-      ok: true,
-      totalCortes,
-      corteMasAntiguo: corteMasAntiguo ? {
-        fecha: corteMasAntiguo.fechaCorte,
-        impresora: corteMasAntiguo.nombreImpresora
-      } : null,
-      corteMasReciente: corteMasReciente ? {
-        fecha: corteMasReciente.fechaCorte,
-        impresora: corteMasReciente.nombreImpresora
-      } : null,
-      proximaLimpieza: 'Día 1 de cada mes a las 2:00 AM',
-      mesesRetencion: 3
-    });
-    
-  } catch (err) {
-    console.error('❌ Error obteniendo estado:', err);
-    res.status(500).json({ ok: false, error: 'Error obteniendo estado' });
-  }
-});
 
                       /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
                       /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
