@@ -1,7 +1,6 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const PDFDocument = require('pdfkit');
-const PDFDocument = require('pdfkit');
 const PDFTable = require('pdfkit-table');
 const path = require('path');
 const cors = require('cors');
