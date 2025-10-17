@@ -446,70 +446,98 @@ async function generarPDFProfesional(corte, impresora) {
       const statWidth = (doc.page.width - 60) / 3;
       
       // Estadística 1: Contador Inicial
-      doc.rect(20, yPosition, statWidth, 80)
-         .fillColor('#f0f9ff')
-         .fill()
-         .strokeColor('#bae6fd')
-         .stroke();
+     // Estadística 1: Contador Inicial
+doc.rect(20, yPosition, statWidth, 80)
+   .fillColor('#f0f9ff')
+   .fill()
+   .strokeColor('#bae6fd')
+   .stroke();
 
-      doc.fillColor('#0369a1')
-         .fontSize(11)
-         .font('Helvetica-Bold')
-         .text('INICIO PERÍODO', 20 + statWidth/2, yPosition + 15, { align: 'center', width: statWidth });
+doc.fillColor('#0369a1')
+   .fontSize(11)
+   .font('Helvetica-Bold')
+   .text('INICIO PERÍODO', 20, yPosition + 15, { 
+     width: statWidth, 
+     align: 'center' 
+   });
 
-      doc.fillColor('#0c4a6e')
-         .fontSize(18)
-         .font('Helvetica-Bold')
-         .text(corte.contadorInicioGeneral?.toLocaleString() || '0', 20, yPosition + 35, {  width: statWidth, align: 'center'});
+doc.fillColor('#0c4a6e')
+   .fontSize(18)
+   .font('Helvetica-Bold')
+   .text(corte.contadorInicioGeneral?.toLocaleString() || '0', 20, yPosition + 35, {  
+     width: statWidth, 
+     align: 'center'
+   });
 
-      doc.fillColor('#64748b')
-         .fontSize(8)
-         .font('Helvetica')
-         .text('PÁGINAS', 20 + statWidth/2, yPosition + 60, { align: 'center', width: statWidth });
+doc.fillColor('#64748b')
+   .fontSize(8)
+   .font('Helvetica')
+   .text('PÁGINAS', 20, yPosition + 60, { 
+     width: statWidth, 
+     align: 'center' 
+   });
 
-      // Estadística 2: Contador Final
-      doc.rect(20 + statWidth + 10, yPosition, statWidth, 80)
-         .fillColor('#f0fdf4')
-         .fill()
-         .strokeColor('#bbf7d0')
-         .stroke();
+// Estadística 2: Contador Final
+doc.rect(20 + statWidth + 10, yPosition, statWidth, 80)
+   .fillColor('#f0fdf4')
+   .fill()
+   .strokeColor('#bbf7d0')
+   .stroke();
 
-      doc.fillColor('#16a34a')
-         .fontSize(11)
-         .font('Helvetica-Bold')
-         .text('FIN PERÍODO', 20 + statWidth + 10 + statWidth/2, yPosition + 15, { align: 'center', width: statWidth });
+doc.fillColor('#16a34a')
+   .fontSize(11)
+   .font('Helvetica-Bold')
+   .text('FIN PERÍODO', 20 + statWidth + 10, yPosition + 15, { 
+     width: statWidth, 
+     align: 'center' 
+   });
 
-      doc.fillColor('#15803d')
-         .fontSize(18)
-         .font('Helvetica-Bold')
-        .text(corte.contadorFinGeneral.toLocaleString(), 20 + statWidth + 10, yPosition + 35, { width: statWidth, align: 'center' });
+doc.fillColor('#15803d')
+   .fontSize(18)
+   .font('Helvetica-Bold')
+  .text(corte.contadorFinGeneral.toLocaleString(), 20 + statWidth + 10, yPosition + 35, { 
+    width: statWidth, 
+    align: 'center' 
+  });
 
-      doc.fillColor('#64748b')
-         .fontSize(8)
-         .font('Helvetica')
-         .text('PÁGINAS', 20 + statWidth + 10 + statWidth/2, yPosition + 60, { align: 'center', width: statWidth });
+doc.fillColor('#64748b')
+   .fontSize(8)
+   .font('Helvetica')
+   .text('PÁGINAS', 20 + statWidth + 10, yPosition + 60, { 
+     width: statWidth, 
+     align: 'center' 
+   });
 
-      // Estadística 3: Consumo Total
-      doc.rect(20 + (statWidth + 10) * 2, yPosition, statWidth, 80)
-         .fillColor('#fef7ed')
-         .fill()
-         .strokeColor('#fed7aa')
-         .stroke();
+// Estadística 3: Consumo Total
+doc.rect(20 + (statWidth + 10) * 2, yPosition, statWidth, 80)
+   .fillColor('#fef7ed')
+   .fill()
+   .strokeColor('#fed7aa')
+   .stroke();
 
-      doc.fillColor('#ea580c')
-         .fontSize(11)
-         .font('Helvetica-Bold')
-         .text('CONSUMO TOTAL', 20 + (statWidth + 10) * 2 + statWidth/2, yPosition + 15, { align: 'center', width: statWidth });
+doc.fillColor('#ea580c')
+   .fontSize(11)
+   .font('Helvetica-Bold')
+   .text('CONSUMO TOTAL', 20 + (statWidth + 10) * 2, yPosition + 15, { 
+     width: statWidth, 
+     align: 'center' 
+   });
 
-      doc.fillColor('#c2410c')
-         .fontSize(22)
-         .font('Helvetica-Bold')
-        .text(corte.totalPaginasGeneral.toLocaleString(), 20 + (statWidth + 10) * 2, yPosition + 35, { width: statWidth, align: 'center' });
+doc.fillColor('#c2410c')
+   .fontSize(22)
+   .font('Helvetica-Bold')
+  .text(corte.totalPaginasGeneral.toLocaleString(), 20 + (statWidth + 10) * 2, yPosition + 35, { 
+    width: statWidth, 
+    align: 'center' 
+  });
 
-      doc.fillColor('#64748b')
-         .fontSize(8)
-         .font('Helvetica')
-         .text('PÁGINAS', 20 + (statWidth + 10) * 2 + statWidth/2, yPosition + 60, { align: 'center', width: statWidth });
+doc.fillColor('#64748b')
+   .fontSize(8)
+   .font('Helvetica')
+   .text('PÁGINAS', 20 + (statWidth + 10) * 2, yPosition + 60, { 
+     width: statWidth, 
+     align: 'center' 
+   });
 
       // ========== ESTADO DE TONER/SUMINISTROS ==========
       yPosition += 100;
