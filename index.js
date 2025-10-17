@@ -306,6 +306,7 @@ const impresoraLatestSchema = new mongoose.Schema({
     default: null 
   },
 
+  lastCutDate: { type: Date, default: null },
   lastPageCount: { type: Number, default: null },   // total general (ya existente)
   lastPageMono:  { type: Number, default: null },   // NUEVO: total B/N
   lastPageColor: { type: Number, default: null },   // NUEVO: total Color
@@ -950,11 +951,16 @@ app.post('/api/impresoras/:id/registrar-corte', async (req, res) => {
 
     const corteGuardado = await nuevoCorte.save();
 
-    // 5. Actualizar referencia en ImpresoraLatest
-    await ImpresoraLatest.findOneAndUpdate(
-      { printerId },
-      { $set: { ultimoCorteId: corteGuardado._id } }
-    );
+    
+await ImpresoraLatest.findOneAndUpdate(
+  { printerId },
+  { 
+    $set: { 
+      ultimoCorteId: corteGuardado._id,
+      lastCutDate: ahora // 🆕 GUARDAR LA FECHA DEL ÚLTIMO CORTE
+    } 
+  }
+);
 
     res.json({
       ok: true,
