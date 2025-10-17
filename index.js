@@ -378,7 +378,7 @@ async function generarPDFProfesional(corte, impresora) {
   return new Promise((resolve, reject) => {
     try {
       const doc = new PDFDocument({ 
-        margin: 20,
+        margin: 15, // Reducir márgenes
         size: 'A4',
         bufferPages: true
       });
@@ -390,295 +390,262 @@ async function generarPDFProfesional(corte, impresora) {
         resolve(pdfBuffer);
       });
 
-      // ========== ENCABEZADO PROFESIONAL ==========
-      // Logo y fondo de encabezado
-      doc.rect(0, 0, doc.page.width, 100)
+      // ========== ENCABEZADO COMPACTO ==========
+      doc.rect(0, 0, doc.page.width, 80) // Reducir altura
          .fillColor('#1e3a8a')
          .fill();
 
-      // Título principal
       doc.fillColor('white')
-         .fontSize(24)
+         .fontSize(20) // Reducir tamaño
          .font('Helvetica-Bold')
-         .text('REPORTE DE CONSUMO', 0, 35, { align: 'center' });
+         .text('REPORTE DE CONSUMO', 0, 25, { align: 'center' });
 
-      doc.fontSize(12)
+      doc.fontSize(10)
          .font('Helvetica')
-         .text('Sistema de Gestión de Impresoras', 0, 65, { align: 'center' });
+         .text('Sistema de Gestión de Impresoras', 0, 50, { align: 'center' });
 
-      // ========== INFORMACIÓN GENERAL ==========
-      let yPosition = 120;
+      // ========== INFORMACIÓN GENERAL COMPACTA ==========
+      let yPosition = 90; // Empezar más arriba
 
-      // Panel de información de la impresora
-      doc.rect(20, yPosition, doc.page.width - 40, 80)
+      doc.rect(15, yPosition, doc.page.width - 30, 60) // Reducir altura
          .fillColor('#f8fafc')
          .fill()
          .strokeColor('#e2e8f0')
          .stroke();
 
-      // Información en dos columnas
-      const col1 = 30;
+      const col1 = 25;
       const col2 = doc.page.width / 2;
+
+      doc.fillColor('#1e293b')
+         .fontSize(9)
+         .font('Helvetica-Bold')
+         .text('INFORMACIÓN GENERAL', col1, yPosition + 10);
+
+      doc.font('Helvetica')
+         .fillColor('#475569')
+         .fontSize(8);
+
+      // Columna 1 - Más compacta
+      doc.text(`Empresa: ${impresora.empresaId?.nombre || 'N/A'}`, col1, yPosition + 25);
+      doc.text(`Impresora: ${impresora.printerName || impresora.sysName || impresora.host}`, col1, yPosition + 38);
+      doc.text(`Modelo: ${impresora.model || impresora.sysDescr || 'N/A'}`, col1, yPosition + 51);
+
+      // Columna 2 - Más compacta
+      doc.text(`Serie: ${impresora.serial || 'N/D'}`, col2, yPosition + 25);
+      doc.text(`Ubicación: ${impresora.ciudad || 'N/A'}`, col2, yPosition + 38);
+      doc.text(`Período: ${corte.periodo || 'N/E'}`, col2, yPosition + 51);
+
+      // ========== ESTADÍSTICAS MÁS COMPACTAS ==========
+      yPosition += 70;
+
+      const statWidth = (doc.page.width - 40) / 3;
+      const statHeight = 60; // Reducir altura
+  
+      // Estadística 1: Contador Inicial
+      doc.rect(15, yPosition, statWidth, statHeight)
+         .fillColor('#f0f9ff')
+         .fill()
+         .strokeColor('#bae6fd')
+         .stroke();
+
+      doc.fillColor('#0369a1')
+         .fontSize(9)
+         .font('Helvetica-Bold')
+         .text('INICIO', 15, yPosition + 8, { width: statWidth, align: 'center' });
+
+      doc.fillColor('#0c4a6e')
+         .fontSize(16)
+         .font('Helvetica-Bold')
+         .text(corte.contadorInicioGeneral?.toLocaleString() || '0', 15, yPosition + 25, {  
+           width: statWidth, 
+           align: 'center'
+         });
+
+      doc.fillColor('#64748b')
+         .fontSize(7)
+         .font('Helvetica')
+         .text('PÁGINAS', 15, yPosition + 45, { width: statWidth, align: 'center' });
+
+      // Estadística 2: Contador Final
+      doc.rect(15 + statWidth + 5, yPosition, statWidth, statHeight)
+         .fillColor('#f0fdf4')
+         .fill()
+         .strokeColor('#bbf7d0')
+         .stroke();
+
+      doc.fillColor('#16a34a')
+         .fontSize(9)
+         .font('Helvetica-Bold')
+         .text('FIN', 15 + statWidth + 5, yPosition + 8, { width: statWidth, align: 'center' });
+
+      doc.fillColor('#15803d')
+         .fontSize(16)
+         .font('Helvetica-Bold')
+        .text(corte.contadorFinGeneral.toLocaleString(), 15 + statWidth + 5, yPosition + 25, { 
+          width: statWidth, 
+          align: 'center' 
+        });
+
+      doc.fillColor('#64748b')
+         .fontSize(7)
+         .font('Helvetica')
+         .text('PÁGINAS', 15 + statWidth + 5, yPosition + 45, { width: statWidth, align: 'center' });
+
+      // Estadística 3: Consumo Total
+      doc.rect(15 + (statWidth + 5) * 2, yPosition, statWidth, statHeight)
+         .fillColor('#fef7ed')
+         .fill()
+         .strokeColor('#fed7aa')
+         .stroke();
+
+      doc.fillColor('#ea580c')
+         .fontSize(9)
+         .font('Helvetica-Bold')
+         .text('CONSUMO', 15 + (statWidth + 5) * 2, yPosition + 8, { width: statWidth, align: 'center' });
+
+      doc.fillColor('#c2410c')
+         .fontSize(18)
+         .font('Helvetica-Bold')
+        .text(corte.totalPaginasGeneral.toLocaleString(), 15 + (statWidth + 5) * 2, yPosition + 25, { 
+          width: statWidth, 
+          align: 'center' 
+        });
+
+      doc.fillColor('#64748b')
+         .fontSize(7)
+         .font('Helvetica')
+         .text('PÁGINAS', 15 + (statWidth + 5) * 2, yPosition + 45, { width: statWidth, align: 'center' });
+
+      // ========== TONER COMPACTO ==========
+      yPosition += 70;
 
       doc.fillColor('#1e293b')
          .fontSize(10)
          .font('Helvetica-Bold')
-         .text('INFORMACIÓN GENERAL', col1, yPosition + 15);
+         .text('ESTADO DE SUMINISTROS', 15, yPosition);
 
-      doc.font('Helvetica')
-         .fillColor('#475569')
-         .fontSize(9);
-
-      // Columna 1
-      doc.text(`Empresa: ${impresora.empresaId?.nombre || 'N/A'}`, col1, yPosition + 35);
-      doc.text(`Impresora: ${impresora.printerName || impresora.sysName || impresora.host}`, col1, yPosition + 50);
-      doc.text(`Modelo: ${impresora.model || impresora.sysDescr || 'N/A'}`, col1, yPosition + 65);
-
-      // Columna 2
-      doc.text(`Número de Serie: ${impresora.serial || 'No disponible'}`, col2, yPosition + 35);
-      doc.text(`Ubicación: ${impresora.ciudad || 'N/A'}`, col2, yPosition + 50);
-      doc.text(`Período: ${corte.periodo || 'No especificado'}`, col2, yPosition + 65);
-
-      // ========== ESTADÍSTICAS PRINCIPALES ==========
-      yPosition += 100;
-
-      // Contenedor para estadísticas
-      const statWidth = (doc.page.width - 60) / 3;
-      
-      // Estadística 1: Contador Inicial
-     // Estadística 1: Contador Inicial
-doc.rect(20, yPosition, statWidth, 80)
-   .fillColor('#f0f9ff')
-   .fill()
-   .strokeColor('#bae6fd')
-   .stroke();
-
-doc.fillColor('#0369a1')
-   .fontSize(11)
-   .font('Helvetica-Bold')
-   .text('INICIO PERÍODO', 20, yPosition + 15, { 
-     width: statWidth, 
-     align: 'center' 
-   });
-
-doc.fillColor('#0c4a6e')
-   .fontSize(18)
-   .font('Helvetica-Bold')
-   .text(corte.contadorInicioGeneral?.toLocaleString() || '0', 20, yPosition + 35, {  
-     width: statWidth, 
-     align: 'center'
-   });
-
-doc.fillColor('#64748b')
-   .fontSize(8)
-   .font('Helvetica')
-   .text('PÁGINAS', 20, yPosition + 60, { 
-     width: statWidth, 
-     align: 'center' 
-   });
-
-// Estadística 2: Contador Final
-doc.rect(20 + statWidth + 10, yPosition, statWidth, 80)
-   .fillColor('#f0fdf4')
-   .fill()
-   .strokeColor('#bbf7d0')
-   .stroke();
-
-doc.fillColor('#16a34a')
-   .fontSize(11)
-   .font('Helvetica-Bold')
-   .text('FIN PERÍODO', 20 + statWidth + 10, yPosition + 15, { 
-     width: statWidth, 
-     align: 'center' 
-   });
-
-doc.fillColor('#15803d')
-   .fontSize(18)
-   .font('Helvetica-Bold')
-  .text(corte.contadorFinGeneral.toLocaleString(), 20 + statWidth + 10, yPosition + 35, { 
-    width: statWidth, 
-    align: 'center' 
-  });
-
-doc.fillColor('#64748b')
-   .fontSize(8)
-   .font('Helvetica')
-   .text('PÁGINAS', 20 + statWidth + 10, yPosition + 60, { 
-     width: statWidth, 
-     align: 'center' 
-   });
-
-// Estadística 3: Consumo Total
-doc.rect(20 + (statWidth + 10) * 2, yPosition, statWidth, 80)
-   .fillColor('#fef7ed')
-   .fill()
-   .strokeColor('#fed7aa')
-   .stroke();
-
-doc.fillColor('#ea580c')
-   .fontSize(11)
-   .font('Helvetica-Bold')
-   .text('CONSUMO TOTAL', 20 + (statWidth + 10) * 2, yPosition + 15, { 
-     width: statWidth, 
-     align: 'center' 
-   });
-
-doc.fillColor('#c2410c')
-   .fontSize(22)
-   .font('Helvetica-Bold')
-  .text(corte.totalPaginasGeneral.toLocaleString(), 20 + (statWidth + 10) * 2, yPosition + 35, { 
-    width: statWidth, 
-    align: 'center' 
-  });
-
-doc.fillColor('#64748b')
-   .fontSize(8)
-   .font('Helvetica')
-   .text('PÁGINAS', 20 + (statWidth + 10) * 2, yPosition + 60, { 
-     width: statWidth, 
-     align: 'center' 
-   });
-
-      // ========== ESTADO DE TONER/SUMINISTROS ==========
-      yPosition += 100;
-
-      doc.fillColor('#1e293b')
-         .fontSize(12)
-         .font('Helvetica-Bold')
-         .text('ESTADO DE SUMINISTROS', 20, yPosition);
-
-      // Verificar si hay datos de supplies
       const supplies = corte.suppliesFin || [];
       
       if (supplies.length > 0) {
-        const supplyWidth = (doc.page.width - 60) / Math.min(supplies.length, 4);
-        let supplyX = 20;
+        const supplyWidth = (doc.page.width - 40) / Math.min(supplies.length, 4);
+        let supplyX = 15;
 
         supplies.forEach((supply, index) => {
-          if (index >= 4) return; // Máximo 4 supplies por fila
+          if (index >= 4) return;
           
           const level = supply.level || 0;
           const max = supply.max || 100;
           const percentage = max > 0 ? (level / max) * 100 : level;
           
-          // Determinar color según el nivel
-          let color = '#22c55e'; // Verde
-          if (percentage <= 20) color = '#ef4444'; // Rojo
-          else if (percentage <= 50) color = '#f59e0b'; // Amarillo
+          let color = '#22c55e';
+          if (percentage <= 20) color = '#ef4444';
+          else if (percentage <= 50) color = '#f59e0b';
 
-          // Contenedor del supply
-          doc.rect(supplyX, yPosition + 25, supplyWidth - 10, 60)
+          // Contenedor más compacto
+          doc.rect(supplyX, yPosition + 20, supplyWidth - 5, 45)
              .fillColor('#f8fafc')
              .fill()
              .strokeColor('#e2e8f0')
              .stroke();
 
-          // Nombre del supply
+          // Nombre más compacto
           doc.fillColor('#475569')
-             .fontSize(8)
+             .fontSize(7)
              .font('Helvetica-Bold')
-             .text((supply.name || `Supply ${index + 1}`).toUpperCase(), 
-                   supplyX + 5, yPosition + 35, { 
-                     width: supplyWidth - 20, 
+             .text((supply.name || `S${index + 1}`).substring(0, 12).toUpperCase(), 
+                   supplyX + 3, yPosition + 28, { 
+                     width: supplyWidth - 10, 
                      align: 'center' 
                    });
 
-          // Barra de progreso
-          const barWidth = supplyWidth - 30;
-          const barHeight = 8;
-          const barX = supplyX + 5;
-          const barY = yPosition + 50;
+          // Barra de progreso compacta
+          const barWidth = supplyWidth - 15;
+          const barHeight = 6;
+          const barX = supplyX + 3;
+          const barY = yPosition + 40;
           
-          // Fondo de la barra
           doc.rect(barX, barY, barWidth, barHeight)
              .fillColor('#e2e8f0')
              .fill();
 
-          // Progreso
           const progressWidth = (percentage / 100) * barWidth;
           doc.rect(barX, barY, progressWidth, barHeight)
              .fillColor(color)
              .fill();
 
-          // Texto del porcentaje
           doc.fillColor('#1e293b')
-             .fontSize(7)
+             .fontSize(6)
              .font('Helvetica-Bold')
              .text(`${Math.round(percentage)}%`, 
-                   barX, barY + 12, { 
+                   barX, barY + 8, { 
                      width: barWidth, 
                      align: 'center' 
                    });
 
-          // Nivel actual
           doc.fillColor('#64748b')
-             .fontSize(7)
+             .fontSize(6)
              .font('Helvetica')
              .text(`${level}${max > 0 ? `/${max}` : ''}`, 
-                   barX, barY + 25, { 
+                   barX, barY + 18, { 
                      width: barWidth, 
                      align: 'center' 
                    });
 
           supplyX += supplyWidth;
         });
+        yPosition += 75;
       } else {
         doc.fillColor('#94a3b8')
-           .fontSize(10)
+           .fontSize(9)
            .font('Helvetica')
-           .text('No hay datos de suministros disponibles', 20, yPosition + 40);
+           .text('No hay datos de suministros', 15, yPosition + 30);
+        yPosition += 50;
       }
 
-      // ========== DETALLES ADICIONALES ==========
-      yPosition += 100;
+      // ========== INFORMACIÓN ADICIONAL COMPACTA ==========
+      // Solo si hay espacio, si no la omitimos
+      if (yPosition < 650) {
+        doc.rect(15, yPosition, doc.page.width - 30, 40)
+           .fillColor('#f8fafc')
+           .fill()
+           .strokeColor('#e2e8f0')
+           .stroke();
 
-      doc.rect(20, yPosition, doc.page.width - 40, 60)
-         .fillColor('#f8fafc')
-         .fill()
-         .strokeColor('#e2e8f0')
-         .stroke();
+        doc.fillColor('#1e293b')
+           .fontSize(8)
+           .font('Helvetica-Bold')
+           .text('INFORMACIÓN ADICIONAL', 25, yPosition + 12);
 
-      doc.fillColor('#1e293b')
-         .fontSize(10)
-         .font('Helvetica-Bold')
-         .text('INFORMACIÓN ADICIONAL', 30, yPosition + 15);
+        doc.fillColor('#475569')
+           .fontSize(7)
+           .font('Helvetica')
+           .text(`Generado: ${new Date().toLocaleDateString()}`, 25, yPosition + 25);
 
-      doc.fillColor('#475569')
-         .fontSize(8)
-         .font('Helvetica')
-         .text(`Fecha de generación: ${new Date().toLocaleDateString('es-ES', { 
-           year: 'numeric', 
-           month: 'long', 
-           day: 'numeric',
-           hour: '2-digit',
-           minute: '2-digit'
-         })}`, 30, yPosition + 35);
+        doc.text(`ID: ${corte._id?.toString().substring(0, 8) || 'N/A'}`, doc.page.width - 100, yPosition + 25);
+      }
 
-      doc.text(`ID del reporte: ${corte._id || 'N/A'}`, 30, yPosition + 50);
-
-      // ========== PIE DE PÁGINA PROFESIONAL ==========
+      // ========== PIE DE PÁGINA COMPACTO ==========
       const pageHeight = doc.page.height;
       
-      doc.rect(0, pageHeight - 40, doc.page.width, 40)
+      doc.rect(0, pageHeight - 30, doc.page.width, 30)
          .fillColor('#1e293b')
          .fill();
 
       doc.fillColor('white')
-         .fontSize(7)
+         .fontSize(6)
          .font('Helvetica')
-         .text('Sistema de Monitoreo de Impresoras • Reporte generado automáticamente', 
-               20, pageHeight - 25, { align: 'left' });
+         .text('Sistema de Monitoreo • Reporte automático', 
+               15, pageHeight - 20, { align: 'left' });
 
       doc.text(`Página 1 de 1 • ${new Date().getFullYear()}`, 
-               0, pageHeight - 25, { align: 'center' });
+               0, pageHeight - 20, { align: 'center' });
 
-      doc.text('Confidencial', 
-               doc.page.width - 20, pageHeight - 25, { align: 'right' });
-
+      // FORZAR UNA SOLA PÁGINA
+      doc.flushPages();
       doc.end();
 
     } catch (error) {
-      console.error('Error detallado en generación PDF:', error);
+      console.error('Error generando PDF:', error);
       reject(error);
     }
   });
