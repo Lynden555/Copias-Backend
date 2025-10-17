@@ -567,7 +567,6 @@ async function generarPDFProfesional(corte, impresora) {
          .text('Sistema de Monitoreo de Impresoras • Reporte generado automáticamente', 20, pageHeight - 25 - bottomMargin, { align: 'left' });
 
       doc.text(`Página 1 de 1 • ${new Date().getFullYear()}`, 0, pageHeight - 25 - bottomMargin, { align: 'center' });
-      doc.text('Confidencial', doc.page.width - 20, pageHeight - 25 - bottomMargin, { align: 'right' });
 
       doc.end();
 
