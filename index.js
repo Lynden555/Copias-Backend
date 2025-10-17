@@ -378,8 +378,8 @@ async function generarPDFProfesional(corte, impresora) {
   return new Promise((resolve, reject) => {
     try {
       const doc = new PDFDocument({ 
-        margin: 15, // Reducir márgenes
-        size: 'A4',
+        margin: 15,
+        size: 'LETTER', // Cambiar a LETTER que es más pequeño
         bufferPages: true
       });
 
@@ -390,57 +390,57 @@ async function generarPDFProfesional(corte, impresora) {
         resolve(pdfBuffer);
       });
 
-      // ========== ENCABEZADO COMPACTO ==========
-      doc.rect(0, 0, doc.page.width, 80) // Reducir altura
+      // ========== ENCABEZADO MÁS COMPACTO ==========
+      doc.rect(0, 0, doc.page.width, 70)
          .fillColor('#1e3a8a')
          .fill();
 
       doc.fillColor('white')
-         .fontSize(20) // Reducir tamaño
+         .fontSize(18)
          .font('Helvetica-Bold')
-         .text('REPORTE DE CONSUMO', 0, 25, { align: 'center' });
+         .text('REPORTE DE CONSUMO', 0, 20, { align: 'center' });
 
-      doc.fontSize(10)
+      doc.fontSize(9)
          .font('Helvetica')
-         .text('Sistema de Gestión de Impresoras', 0, 50, { align: 'center' });
+         .text('Sistema de Gestión de Impresoras', 0, 42, { align: 'center' });
 
-      // ========== INFORMACIÓN GENERAL COMPACTA ==========
-      let yPosition = 90; // Empezar más arriba
+      // ========== INFORMACIÓN GENERAL SUPER COMPACTA ==========
+      let yPosition = 80;
 
-      doc.rect(15, yPosition, doc.page.width - 30, 60) // Reducir altura
-         .fillColor('#f8fafc')
-         .fill()
-         .strokeColor('#e2e8f0')
-         .stroke();
-
-      const col1 = 25;
-      const col2 = doc.page.width / 2;
-
+      // Usar una tabla simple en lugar de caja grande
       doc.fillColor('#1e293b')
          .fontSize(9)
          .font('Helvetica-Bold')
-         .text('INFORMACIÓN GENERAL', col1, yPosition + 10);
+         .text('INFORMACIÓN GENERAL', 15, yPosition);
+
+      yPosition += 15;
+
+      const col1 = 15;
+      const col2 = doc.page.width / 2;
 
       doc.font('Helvetica')
          .fillColor('#475569')
          .fontSize(8);
 
-      // Columna 1 - Más compacta
-      doc.text(`Empresa: ${impresora.empresaId?.nombre || 'N/A'}`, col1, yPosition + 25);
-      doc.text(`Impresora: ${impresora.printerName || impresora.sysName || impresora.host}`, col1, yPosition + 38);
-      doc.text(`Modelo: ${impresora.model || impresora.sysDescr || 'N/A'}`, col1, yPosition + 51);
+      // Fila 1
+      doc.text(`Empresa: ${impresora.empresaId?.nombre || 'N/A'}`, col1, yPosition);
+      doc.text(`Serie: ${impresora.serial || 'N/D'}`, col2, yPosition);
+      yPosition += 12;
 
-      // Columna 2 - Más compacta
-      doc.text(`Serie: ${impresora.serial || 'N/D'}`, col2, yPosition + 25);
-      doc.text(`Ubicación: ${impresora.ciudad || 'N/A'}`, col2, yPosition + 38);
-      doc.text(`Período: ${corte.periodo || 'N/E'}`, col2, yPosition + 51);
+      // Fila 2
+      doc.text(`Impresora: ${impresora.printerName || impresora.sysName || impresora.host}`, col1, yPosition);
+      doc.text(`Ubicación: ${impresora.ciudad || 'N/A'}`, col2, yPosition);
+      yPosition += 12;
 
-      // ========== ESTADÍSTICAS MÁS COMPACTAS ==========
-      yPosition += 70;
+      // Fila 3
+      doc.text(`Modelo: ${impresora.model || impresora.sysDescr || 'N/A'}`, col1, yPosition);
+      doc.text(`Período: ${corte.periodo || 'N/E'}`, col2, yPosition);
+      yPosition += 20;
 
+      // ========== ESTADÍSTICAS COMPACTAS ==========
       const statWidth = (doc.page.width - 40) / 3;
-      const statHeight = 60; // Reducir altura
-  
+      const statHeight = 55;
+
       // Estadística 1: Contador Inicial
       doc.rect(15, yPosition, statWidth, statHeight)
          .fillColor('#f0f9ff')
@@ -449,14 +449,14 @@ async function generarPDFProfesional(corte, impresora) {
          .stroke();
 
       doc.fillColor('#0369a1')
-         .fontSize(9)
+         .fontSize(8)
          .font('Helvetica-Bold')
          .text('INICIO', 15, yPosition + 8, { width: statWidth, align: 'center' });
 
       doc.fillColor('#0c4a6e')
-         .fontSize(16)
+         .fontSize(14)
          .font('Helvetica-Bold')
-         .text(corte.contadorInicioGeneral?.toLocaleString() || '0', 15, yPosition + 25, {  
+         .text(corte.contadorInicioGeneral?.toLocaleString() || '0', 15, yPosition + 22, {  
            width: statWidth, 
            align: 'center'
          });
@@ -464,7 +464,7 @@ async function generarPDFProfesional(corte, impresora) {
       doc.fillColor('#64748b')
          .fontSize(7)
          .font('Helvetica')
-         .text('PÁGINAS', 15, yPosition + 45, { width: statWidth, align: 'center' });
+         .text('PÁGINAS', 15, yPosition + 40, { width: statWidth, align: 'center' });
 
       // Estadística 2: Contador Final
       doc.rect(15 + statWidth + 5, yPosition, statWidth, statHeight)
@@ -474,14 +474,14 @@ async function generarPDFProfesional(corte, impresora) {
          .stroke();
 
       doc.fillColor('#16a34a')
-         .fontSize(9)
+         .fontSize(8)
          .font('Helvetica-Bold')
          .text('FIN', 15 + statWidth + 5, yPosition + 8, { width: statWidth, align: 'center' });
 
       doc.fillColor('#15803d')
-         .fontSize(16)
+         .fontSize(14)
          .font('Helvetica-Bold')
-        .text(corte.contadorFinGeneral.toLocaleString(), 15 + statWidth + 5, yPosition + 25, { 
+        .text(corte.contadorFinGeneral.toLocaleString(), 15 + statWidth + 5, yPosition + 22, { 
           width: statWidth, 
           align: 'center' 
         });
@@ -489,7 +489,7 @@ async function generarPDFProfesional(corte, impresora) {
       doc.fillColor('#64748b')
          .fontSize(7)
          .font('Helvetica')
-         .text('PÁGINAS', 15 + statWidth + 5, yPosition + 45, { width: statWidth, align: 'center' });
+         .text('PÁGINAS', 15 + statWidth + 5, yPosition + 40, { width: statWidth, align: 'center' });
 
       // Estadística 3: Consumo Total
       doc.rect(15 + (statWidth + 5) * 2, yPosition, statWidth, statHeight)
@@ -499,14 +499,14 @@ async function generarPDFProfesional(corte, impresora) {
          .stroke();
 
       doc.fillColor('#ea580c')
-         .fontSize(9)
+         .fontSize(8)
          .font('Helvetica-Bold')
          .text('CONSUMO', 15 + (statWidth + 5) * 2, yPosition + 8, { width: statWidth, align: 'center' });
 
       doc.fillColor('#c2410c')
-         .fontSize(18)
+         .fontSize(16)
          .font('Helvetica-Bold')
-        .text(corte.totalPaginasGeneral.toLocaleString(), 15 + (statWidth + 5) * 2, yPosition + 25, { 
+        .text(corte.totalPaginasGeneral.toLocaleString(), 15 + (statWidth + 5) * 2, yPosition + 22, { 
           width: statWidth, 
           align: 'center' 
         });
@@ -514,24 +514,32 @@ async function generarPDFProfesional(corte, impresora) {
       doc.fillColor('#64748b')
          .fontSize(7)
          .font('Helvetica')
-         .text('PÁGINAS', 15 + (statWidth + 5) * 2, yPosition + 45, { width: statWidth, align: 'center' });
+         .text('PÁGINAS', 15 + (statWidth + 5) * 2, yPosition + 40, { width: statWidth, align: 'center' });
 
-      // ========== TONER COMPACTO ==========
-      yPosition += 70;
+      yPosition += 65;
 
+      // ========== TONER SIMPLIFICADO ==========
       doc.fillColor('#1e293b')
-         .fontSize(10)
+         .fontSize(9)
          .font('Helvetica-Bold')
          .text('ESTADO DE SUMINISTROS', 15, yPosition);
 
       const supplies = corte.suppliesFin || [];
       
       if (supplies.length > 0) {
-        const supplyWidth = (doc.page.width - 40) / Math.min(supplies.length, 4);
-        let supplyX = 15;
-
-        supplies.forEach((supply, index) => {
-          if (index >= 4) return;
+        yPosition += 15;
+        
+        // Máximo 3 supplies por fila para mejor ajuste
+        const suppliesPerRow = 3;
+        const supplyWidth = (doc.page.width - 40) / suppliesPerRow;
+        
+        for (let i = 0; i < Math.min(supplies.length, 6); i++) { // Máximo 6 supplies
+          if (i > 0 && i % suppliesPerRow === 0) {
+            yPosition += 45; // Nueva fila
+          }
+          
+          const supply = supplies[i];
+          const supplyX = 15 + (i % suppliesPerRow) * supplyWidth;
           
           const level = supply.level || 0;
           const max = supply.max || 100;
@@ -541,28 +549,29 @@ async function generarPDFProfesional(corte, impresora) {
           if (percentage <= 20) color = '#ef4444';
           else if (percentage <= 50) color = '#f59e0b';
 
-          // Contenedor más compacto
-          doc.rect(supplyX, yPosition + 20, supplyWidth - 5, 45)
+          // Contenedor pequeño
+          doc.rect(supplyX, yPosition, supplyWidth - 10, 35)
              .fillColor('#f8fafc')
              .fill()
              .strokeColor('#e2e8f0')
              .stroke();
 
-          // Nombre más compacto
+          // Nombre abreviado
+          const supplyName = (supply.name || `S${i + 1}`).substring(0, 10);
           doc.fillColor('#475569')
              .fontSize(7)
              .font('Helvetica-Bold')
-             .text((supply.name || `S${index + 1}`).substring(0, 12).toUpperCase(), 
-                   supplyX + 3, yPosition + 28, { 
-                     width: supplyWidth - 10, 
+             .text(supplyName.toUpperCase(), 
+                   supplyX + 5, yPosition + 5, { 
+                     width: supplyWidth - 20, 
                      align: 'center' 
                    });
 
-          // Barra de progreso compacta
-          const barWidth = supplyWidth - 15;
-          const barHeight = 6;
-          const barX = supplyX + 3;
-          const barY = yPosition + 40;
+          // Barra mini
+          const barWidth = supplyWidth - 20;
+          const barHeight = 4;
+          const barX = supplyX + 5;
+          const barY = yPosition + 15;
           
           doc.rect(barX, barY, barWidth, barHeight)
              .fillColor('#e2e8f0')
@@ -573,11 +582,12 @@ async function generarPDFProfesional(corte, impresora) {
              .fillColor(color)
              .fill();
 
+          // Texto compacto
           doc.fillColor('#1e293b')
              .fontSize(6)
              .font('Helvetica-Bold')
              .text(`${Math.round(percentage)}%`, 
-                   barX, barY + 8, { 
+                   barX, barY + 7, { 
                      width: barWidth, 
                      align: 'center' 
                    });
@@ -586,59 +596,56 @@ async function generarPDFProfesional(corte, impresora) {
              .fontSize(6)
              .font('Helvetica')
              .text(`${level}${max > 0 ? `/${max}` : ''}`, 
-                   barX, barY + 18, { 
+                   barX, barY + 16, { 
                      width: barWidth, 
                      align: 'center' 
                    });
-
-          supplyX += supplyWidth;
-        });
-        yPosition += 75;
+        }
+        yPosition += 50;
       } else {
         doc.fillColor('#94a3b8')
-           .fontSize(9)
+           .fontSize(8)
            .font('Helvetica')
-           .text('No hay datos de suministros', 15, yPosition + 30);
-        yPosition += 50;
+           .text('No hay datos de suministros', 15, yPosition + 20);
+        yPosition += 30;
       }
 
-      // ========== INFORMACIÓN ADICIONAL COMPACTA ==========
-      // Solo si hay espacio, si no la omitimos
+      // ========== INFORMACIÓN FINAL COMPACTA ==========
+      // Solo si hay espacio en la página LETTER
       if (yPosition < 650) {
-        doc.rect(15, yPosition, doc.page.width - 30, 40)
-           .fillColor('#f8fafc')
-           .fill()
-           .strokeColor('#e2e8f0')
-           .stroke();
-
+        yPosition += 10;
+        
         doc.fillColor('#1e293b')
            .fontSize(8)
            .font('Helvetica-Bold')
-           .text('INFORMACIÓN ADICIONAL', 25, yPosition + 12);
+           .text('INFORMACIÓN ADICIONAL', 15, yPosition);
 
+        yPosition += 12;
+        
         doc.fillColor('#475569')
            .fontSize(7)
            .font('Helvetica')
-           .text(`Generado: ${new Date().toLocaleDateString()}`, 25, yPosition + 25);
-
-        doc.text(`ID: ${corte._id?.toString().substring(0, 8) || 'N/A'}`, doc.page.width - 100, yPosition + 25);
+           .text(`Fecha: ${new Date().toLocaleDateString()}`, 15, yPosition);
+           
+        doc.text(`ID: ${corte._id?.toString().substring(0, 8) || 'N/A'}`, 
+                 doc.page.width - 80, yPosition);
       }
 
-      // ========== PIE DE PÁGINA COMPACTO ==========
+      // ========== PIE DE PÁGINA ==========
       const pageHeight = doc.page.height;
       
-      doc.rect(0, pageHeight - 30, doc.page.width, 30)
+      doc.rect(0, pageHeight - 25, doc.page.width, 25)
          .fillColor('#1e293b')
          .fill();
 
       doc.fillColor('white')
          .fontSize(6)
          .font('Helvetica')
-         .text('Sistema de Monitoreo • Reporte automático', 
-               15, pageHeight - 20, { align: 'left' });
+         .text('Reporte generado automáticamente', 
+               15, pageHeight - 16, { align: 'left' });
 
-      doc.text(`Página 1 de 1 • ${new Date().getFullYear()}`, 
-               0, pageHeight - 20, { align: 'center' });
+      doc.text(`Página 1 de 1`, 
+               0, pageHeight - 16, { align: 'center' });
 
       // FORZAR UNA SOLA PÁGINA
       doc.flushPages();
@@ -650,7 +657,6 @@ async function generarPDFProfesional(corte, impresora) {
     }
   });
 }
-
 
 // Función para generar ApiKey aleatoria
 function generarApiKey() {
